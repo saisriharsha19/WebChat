@@ -29,7 +29,7 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen w-full flex items-center justify-center bg-[#0a0a0b] relative overflow-hidden">
+        <div className="h-full w-full flex items-center justify-center bg-[#0a0a0b] relative overflow-hidden">
 
             <div className="w-full max-w-[380px] p-8 m-4 glass-panel rounded-2xl relative z-10 animate-fade-in border border-white/5 shadow-2xl backdrop-blur-xl bg-[#111113]/60">
                 <div className="mb-8 text-center">

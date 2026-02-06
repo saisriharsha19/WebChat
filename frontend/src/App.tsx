@@ -9,7 +9,7 @@ function AppContent() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-surface-root">
+            <div className="h-full flex flex-col items-center justify-center bg-surface-root">
                 {/* Minimal Spinner */}
                 <div className="w-6 h-6 border-2 border-border-strong border-t-accent rounded-full animate-spin mb-3"></div>
                 <div className="text-txt-tertiary text-[13px] font-medium tracking-wide">INITIALIZING...</div>
@@ -22,17 +22,21 @@ function AppContent() {
     }
 
     return (
-        <WebSocketProvider>
-            <Dashboard />
-        </WebSocketProvider>
+        <div className="h-full w-full">
+            <WebSocketProvider>
+                <Dashboard />
+            </WebSocketProvider>
+        </div>
     );
 }
 
 function App() {
     return (
-        <AuthProvider>
-            <AppContent />
-        </AuthProvider>
+        <div className="w-full h-full overflow-hidden">
+            <AuthProvider>
+                <AppContent />
+            </AuthProvider>
+        </div>
     );
 }
 
