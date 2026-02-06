@@ -1,4 +1,3 @@
-import React from 'react';
 import { AuthProvider, useAuth } from './AuthContext.tsx';
 import { WebSocketProvider } from './WebSocketContext.tsx';
 import LoginPage from './components/LoginPage.tsx';

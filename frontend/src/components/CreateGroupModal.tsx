@@ -56,7 +56,7 @@ export function CreateGroupModal({ onClose, onCreated }: CreateGroupModalProps) 
                                     setMemberIds(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]);
                                 }}
                                 selectedUserIds={memberIds}
-                                multiSelect={true}
+                                selectedUserIds={memberIds}
                             />
                         </div>
                     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import ChatRoom from './ChatRoom';
 import { RoomList } from './RoomList';
