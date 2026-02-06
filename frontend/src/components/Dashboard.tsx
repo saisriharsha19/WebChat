@@ -41,7 +41,7 @@ export default function Dashboard() {
 
             {/* User Profile */}
             <div className="p-3 border-t border-border bg-surface-sidebar shrink-0">
-                <div className="flex items-center gap-2.5 p-1.5 rounded-[4px] hover:bg-surface-hover cursor-pointer transition-colors group">
+                <div className="flex items-center gap-2.5 p-1.5 rounded-[4px] transition-colors">
                     <div className="relative">
                         <div className="w-6 h-6 rounded-[4px] bg-accent flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
                             {user?.username?.[0].toUpperCase()}
@@ -51,13 +51,19 @@ export default function Dashboard() {
                         </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-medium leading-tight truncate text-txt-secondary group-hover:text-txt-primary">
+                        <div className="text-[13px] font-medium leading-tight truncate text-txt-secondary">
                             {user?.display_name || user?.username}
                         </div>
                         <div className="text-[11px] text-txt-tertiary truncate">Online</div>
                     </div>
-                    <button onClick={logout} className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-txt-tertiary transition-all" title="Logout">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    {/* Always visible logout button for touch devices */}
+                    <button
+                        onClick={logout}
+                        className="p-2 hover:bg-surface-hover rounded text-txt-tertiary hover:text-red-400 transition-all touch-target"
+                        title="Logout"
+                        aria-label="Logout"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     </button>
                 </div>
             </div>
