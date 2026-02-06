@@ -59,107 +59,110 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
     };
 
     return (
-        <div className="flex flex-col h-full bg-surface-root text-txt-primary">
-            {/* Header */}
-            <div className="h-[48px] px-4 flex items-center justify-between border-b border-border bg-surface-root z-10 shrink-0">
+        <div className="flex flex-col h-full bg-surface-root text-txt-primary w-full relative">
+            {/* Header - Glass Effect */}
+            <div className="absolute top-0 left-0 right-0 h-[60px] px-4 flex items-center justify-between border-b border-white/5 bg-surface-root/80 backdrop-blur-md z-20 shrink-0 shadow-sm transition-all">
                 <div className="flex items-center gap-3">
-                    {onBack && (
-                        <button
-                            onClick={onBack}
-                            className="md:hidden p-1.5 -ml-2 text-txt-tertiary hover:text-txt-primary hover:bg-surface-hover rounded-full transition-colors"
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6" /></svg>
-                        </button>
-                    )}
-                    <div className="flex items-center gap-2">
-                        <span className="text-txt-tertiary">#</span>
-                        <span className="font-semibold text-[14px]">Room {roomId}</span>
+                    <button
+                        onClick={onBack} // This will just clear room on desktop too if used there, but dashboard handles hiding it
+                        className="md:hidden p-2 -ml-2 text-txt-secondary hover:text-txt-primary hover:bg-white/5 rounded-full transition-colors active:scale-95"
+                    >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-inner">
+                            #
+                        </div>
+                        <div>
+                            <div className="font-semibold text-[15px] leading-tight">Room {roomId}</div>
+                            <div className="text-[11px] text-txt-tertiary flex items-center gap-1.5">
+                                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]' : 'bg-red-500'}`} />
+                                {isConnected ? 'Online' : 'Connecting...'}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} title={isConnected ? 'Connected' : 'Disconnected'} />
+                <div className="flex items-center gap-1">
                     {onToggleDirectory && (
                         <button
                             onClick={onToggleDirectory}
-                            className="text-txt-tertiary hover:text-txt-primary p-2 hover:bg-surface-hover rounded"
+                            className="p-2 text-txt-secondary hover:text-white hover:bg-white/5 rounded-full transition-colors active:scale-95"
+                            title="Room Details"
                         >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="9" y1="3" x2="9" y2="21" /></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto saas-scrollbar flex flex-col px-4 py-4 space-y-4">
+            {/* Messages Area - Added top padding for header */}
+            <div className="flex-1 overflow-y-auto saas-scrollbar flex flex-col px-4 pt-[70px] pb-4 space-y-6 scroll-smooth">
                 <div className="flex-1" />
 
                 {messages?.map((msg, i) => {
                     const isOwn = Number(msg.sender_id) === Number(user?.id);
                     const prevMsg = messages[i - 1];
                     const isSequence = prevMsg && Number(prevMsg.sender_id) === Number(msg.sender_id) &&
-                        (msg.created_at.getTime() - prevMsg.created_at.getTime() < 120000);
+                        (msg.created_at.getTime() - prevMsg.created_at.getTime() < 300000); // 5 mins grouping
 
                     return (
                         <div
                             key={msg.id || msg.temp_id}
-                            className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${!isSequence ? 'mt-2' : 'mt-0.5'}`}
+                            className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${!isSequence ? 'mt-4' : 'mt-1'} group animate-fade-in`}
                         >
-                            {!isOwn && (
-                                <div className={`w-8 h-8 rounded-[4px] bg-accent/20 flex items-center justify-center text-xs font-bold text-accent mr-3 mt-1 flex-shrink-0 ${isSequence ? 'invisible' : ''}`}>
+                            {!isOwn && !isSequence && (
+                                <div className="w-8 h-8 rounded-full bg-surface-hover border border-white/5 flex items-center justify-center text-xs font-semibold text-txt-secondary mr-2 mt-0.5 shadow-sm transform transition-transform group-hover:scale-105">
                                     {msg.sender?.username?.[0] || 'U'}
                                 </div>
                             )}
+                            {!isOwn && isSequence && <div className="w-10 mr-0" />}
 
-                            <div className={`flex flex-col max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                            <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
                                 {!isSequence && !isOwn && (
-                                    <span className="text-[11px] text-txt-tertiary mb-1 ml-0.5">
+                                    <span className="text-[11px] font-medium text-txt-secondary mb-1 ml-1 select-none">
                                         {msg.sender?.display_name || msg.sender?.username}
                                     </span>
                                 )}
 
                                 <div className={`
-                                    relative px-3 py-2 text-[14px] shadow-sm
+                                    relative px-3.5 py-2 text-[14.5px] shadow-sm transition-all duration-200
                                     ${isOwn
-                                        ? 'bg-accent text-white rounded-l-lg rounded-tr-lg rounded-br-sm'
-                                        : 'bg-surface border border-border text-txt-primary rounded-r-lg rounded-tl-lg rounded-bl-sm'}
+                                        ? 'bg-[#5e6ad2] text-white rounded-2xl rounded-tr-sm border border-transparent shadow-[0_2px_8px_rgba(94,106,210,0.25)]'
+                                        : 'bg-surface-hover/80 backdrop-blur-sm border border-white/5 text-txt-primary rounded-2xl rounded-tl-sm hover:border-white/10'}
                                 `}>
-                                    <div className="break-words whitespace-pre-wrap">{msg.content}</div>
+                                    <div className="break-words whitespace-pre-wrap leading-relaxed">{msg.content}</div>
 
                                     {/* Attachments */}
                                     {msg.attachments && msg.attachments.length > 0 && (
-                                        <div className="mt-2 space-y-1">
+                                        <div className="mt-2 space-y-1.5">
                                             {msg.attachments.map((file: any) => (
                                                 <a
                                                     key={file.id}
                                                     href={`${API_URL}/media/${file.filename}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${isOwn
-                                                        ? 'bg-white/10 hover:bg-white/20'
-                                                        : 'bg-surface-hover/50 border border-border/50 hover:bg-surface-hover'
+                                                    className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${isOwn
+                                                        ? 'bg-black/20 hover:bg-black/30 text-white border border-white/10'
+                                                        : 'bg-black/20 hover:bg-black/30 text-txt-primary border border-white/5 hover:border-white/20'
                                                         }`}
                                                 >
-                                                    <div className="p-1.5 bg-black/10 rounded">
-                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path></svg>
+                                                    <div className="p-2 bg-white/10 rounded-lg">
+                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path></svg>
                                                     </div>
                                                     <div className="flex-1 min-w-0 text-left">
-                                                        <div className="text-xs font-medium truncate max-w-[200px] md:max-w-[300px]" title={file.filename}>{file.filename}</div>
-                                                        <div className={`text-[10px] ${isOwn ? 'text-white/70' : 'text-txt-tertiary'}`}>{Math.round(file.file_size / 1024)} KB</div>
-                                                    </div>
-                                                    <div className={`p-1.5 opacity-70 ${isOwn ? 'text-white' : 'text-txt-primary'}`}>
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                                        <div className="text-xs font-semibold truncate max-w-[180px]">{file.filename}</div>
+                                                        <div className="text-[10px] opacity-70 mt-0.5">{Math.round(file.file_size / 1024)} KB</div>
                                                     </div>
                                                 </a>
                                             ))}
                                         </div>
                                     )}
 
-                                    <div className={`text-[10px] mt-1 text-right ${isOwn ? 'text-white/60' : 'text-txt-tertiary'} flex items-center justify-end gap-2`}>
-                                        <span>{formatTime(msg.created_at)}</span>
-                                        {msg.is_edited && <span>(edited)</span>}
+                                    <div className={`text-[10px] mt-1 text-right ${isOwn ? 'text-white/60' : 'text-txt-tertiary'} flex items-center justify-end gap-1.5`}>
+                                        <span className="opacity-80">{formatTime(msg.created_at)}</span>
+                                        {msg.is_edited && <span className="italic opacity-60">(edited)</span>}
 
-                                        {/* Edit Icon - Always visible for own messages */}
                                         {isOwn && (
                                             <button
                                                 onClick={(e) => {
@@ -167,7 +170,7 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
                                                     setEditingMessageId(msg.id || null);
                                                     setInputValue(msg.content);
                                                 }}
-                                                className="opacity-70 hover:opacity-100 transition-opacity p-0.5"
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-white hover:bg-white/20 rounded"
                                                 title="Edit"
                                             >
                                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -179,15 +182,12 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
                         </div>
                     );
                 })}
-                <div ref={messagesEndRef} className="h-4" />
+                <div ref={messagesEndRef} className="h-2" />
             </div>
 
-            {/* Input Area */}
-            <div className="px-4 py-4">
-                <div className="bg-surface border border-border rounded-[8px] shadow-sm focus-within:border-accent focus-within:shadow-md transition-all">
-                    <div className="flex items-center gap-1 p-1 border-b border-border/50 bg-surface-sidebar rounded-t-[8px]">
-                        <FileUploader roomId={roomId} onUploadComplete={() => { }} />
-                    </div>
+            {/* Input Area - Mobile Optimized */}
+            <div className="p-3 md:p-5 bg-surface-root/95 backdrop-blur-xl border-t border-white/5 z-20 shrink-0 sticky bottom-0 safe-pb-2">
+                <div className="relative bg-surface-sidebar border border-white/10 rounded-2xl shadow-sm focus-within:border-accent/50 focus-within:shadow-[0_0_0_2px_rgba(94,106,210,0.2)] focus-within:bg-surface-hover/50 transition-all duration-200">
                     <textarea
                         value={inputValue}
                         onChange={e => setInputValue(e.target.value)}
@@ -198,19 +198,27 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
                             }
                         }}
                         placeholder={`Message #${roomId}`}
-                        className="w-full bg-transparent border-none text-[14px] text-txt-primary px-3 py-2.5 focus:ring-0 resize-none min-h-[44px] max-h-[200px]"
+                        className="w-full bg-transparent border-none text-[15px] text-txt-primary px-4 py-3 pb-10 focus:ring-0 resize-none min-h-[56px] max-h-[160px] leading-relaxed placeholder:text-txt-tertiary"
                         rows={1}
                     />
-                    <div className="flex items-center justify-between px-2 pb-2">
-                        <div className="text-[10px] text-txt-tertiary">
-                            {editingMessageId ? 'Editing message (Esc to cancel)' : 'Return to send, Shift+Return for new line'}
+
+                    {/* Toolbar inside input */}
+                    <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                            <div className="hover:bg-white/5 p-1.5 rounded-full transition-colors">
+                                <FileUploader roomId={roomId} onUploadComplete={() => { }} />
+                            </div>
+                            <div className="hidden md:block text-[10px] text-txt-tertiary ml-2 pointer-events-none select-none">
+                                {editingMessageId ? 'Editing...' : 'Enter to send'}
+                            </div>
                         </div>
+
                         <button
                             onClick={handleSend}
                             disabled={!inputValue.trim()}
-                            className="p-1.5 bg-accent text-white rounded-[4px] disabled:opacity-50 hover:bg-accent-hover transition-colors"
+                            className="p-2 bg-accent text-white rounded-xl disabled:opacity-50 disabled:grayscale hover:bg-accent-hover active:scale-95 transition-all shadow-md shadow-accent/20"
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                         </button>
                     </div>
                 </div>

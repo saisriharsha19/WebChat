@@ -18,7 +18,6 @@ export default function LoginPage() {
             if (isLogin) {
                 await login(username, password);
             } else {
-                // Correct Argument Order: (username, email, password)
                 await register(username, email, password);
             }
         } catch (err: any) {
@@ -30,72 +29,84 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="h-screen w-screen flex items-center justify-center bg-surface-root">
-            <div className="w-full max-w-[320px] p-6">
+        <div className="min-h-screen w-full flex items-center justify-center bg-[#0a0a0b] relative overflow-hidden">
+
+            <div className="w-full max-w-[380px] p-8 m-4 glass-panel rounded-2xl relative z-10 animate-fade-in border border-white/5 shadow-2xl backdrop-blur-xl bg-[#121417]/60">
                 <div className="mb-8 text-center">
-                    <div className="w-10 h-10 bg-white rounded-[8px] mx-auto mb-4 flex items-center justify-center">
-                        <svg className="text-black" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <div className="w-12 h-12 bg-indigo-600 rounded-xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                        <svg className="text-white" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                     </div>
-                    <h1 className="text-[20px] font-semibold text-txt-primary mb-1">{isLogin ? 'Welcome back' : 'Create Account'}</h1>
-                    <p className="text-[14px] text-txt-tertiary">
-                        {isLogin ? 'Enter your details to access your workspace.' : 'Join your team workspace today.'}
+                    <h1 className="text-[24px] font-bold text-white mb-2 tracking-tight">{isLogin ? 'Welcome back' : 'Create Account'}</h1>
+                    <p className="text-[14px] text-txt-secondary leading-relaxed">
+                        {isLogin ? 'Enter your credentials to access your workspace.' : 'Join your team and start collaborating today.'}
                     </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {error && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-[6px] text-red-400 text-[12px]">
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[13px] font-medium text-center animate-slide-up">
                             {error}
                         </div>
                     )}
 
-                    <div>
-                        <input
-                            type="text"
-                            className="saas-input w-full bg-surface-surface border-border-strong"
-                            placeholder="Username"
-                            value={username}
-                            onChange={e => setUsername(e.target.value)}
-                            required
-                        />
-                    </div>
-
-                    {!isLogin && (
+                    <div className="space-y-4">
                         <div>
+                            <label className="block text-[11px] font-bold text-txt-tertiary uppercase tracking-wider mb-1.5 ml-1">Username</label>
                             <input
-                                type="email"
-                                className="saas-input w-full bg-surface-surface border-border-strong"
-                                placeholder="Email address"
-                                value={email}
-                                onChange={e => setEmail(e.target.value)}
-                                required={!isLogin}
+                                type="text"
+                                className="w-full bg-[#0b0c0e]/50 border border-[#2a2d32] focus:border-indigo-500 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
+                                placeholder="Enter username"
+                                value={username}
+                                onChange={e => setUsername(e.target.value)}
+                                required
                             />
                         </div>
-                    )}
 
-                    <div>
-                        <input
-                            type="password"
-                            className="saas-input w-full bg-surface-surface border-border-strong"
-                            placeholder="Password"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            required
-                        />
+                        {!isLogin && (
+                            <div className="animate-slide-up">
+                                <label className="block text-[11px] font-bold text-txt-tertiary uppercase tracking-wider mb-1.5 ml-1">Email</label>
+                                <input
+                                    type="email"
+                                    className="w-full bg-[#0b0c0e]/50 border border-[#2a2d32] focus:border-indigo-500 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
+                                    placeholder="name@company.com"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    required={!isLogin}
+                                />
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-[11px] font-bold text-txt-tertiary uppercase tracking-wider mb-1.5 ml-1">Password</label>
+                            <input
+                                type="password"
+                                className="w-full bg-[#0b0c0e]/50 border border-[#2a2d32] focus:border-indigo-500 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
+                                placeholder="••••••••"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                required
+                            />
+                        </div>
                     </div>
+
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full saas-btn-primary h-[40px] flex items-center justify-center"
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium h-[44px] rounded-lg flex items-center justify-center transition-all duration-200 mt-6 shadow-lg shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                        {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+                        {loading ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (isLogin ? 'Sign In' : 'Create Account')}
                     </button>
                 </form>
 
-                <div className="mt-6 text-center text-[13px] text-txt-tertiary">
-                    {isLogin ? "Don't have an account? " : "Already have an account? "}
-                    <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-txt-primary hover:underline">
-                        {isLogin ? 'Sign up' : 'Log in'}
+                <div className="mt-8 text-center text-[13px] text-txt-tertiary">
+                    {isLogin ? "New to the platform? " : "Already have an account? "}
+                    <button
+                        onClick={() => { setIsLogin(!isLogin); setError(''); }}
+                        className="text-indigo-400 hover:text-indigo-300 font-medium hover:underline transition-colors"
+                    >
+                        {isLogin ? 'Create an account' : 'Sign in here'}
                     </button>
                 </div>
             </div>
