@@ -25,7 +25,7 @@ app = FastAPI(title="WebChat API", lifespan=lifespan)
 
 # Mount static files
 app.mount("/media", StaticFiles(directory=UPLOAD_DIR), name="media")
-
+load_dotenv()
 # CORS Configuration
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
