@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from './lib/db.ts';
 import { API_ENDPOINTS, fetchWithAuth } from './lib/api.ts';
 

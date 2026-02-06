@@ -5,10 +5,9 @@ import { User } from '../types';
 interface UserListProps {
     onSelectUser: (userId: number) => void;
     selectedUserIds?: number[];
-    multiSelect?: boolean;
 }
 
-export function UserList({ onSelectUser, selectedUserIds = [], multiSelect = false }: UserListProps) {
+export function UserList({ onSelectUser, selectedUserIds = [] }: UserListProps) {
     const [users, setUsers] = useState<User[]>([]);
     const [search, setSearch] = useState('');
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../WebSocketContext';
 import { useAuth } from '../AuthContext';
 import { db } from '../lib/db';
@@ -47,17 +47,10 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
             }).then(() => {
                 setEditingMessageId(null);
                 setInputValue('');
-            }).catch(err => alert('Edit failed'));
+            }).catch(() => alert('Edit failed'));
         } else {
             sendMessage(roomId, inputValue.trim());
             setInputValue('');
-        }
-    };
-
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
         }
     };
 
@@ -171,7 +164,7 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setEditingMessageId(msg.id);
+                                                    setEditingMessageId(msg.id || null);
                                                     setInputValue(msg.content);
                                                 }}
                                                 className="opacity-70 hover:opacity-100 transition-opacity p-0.5"

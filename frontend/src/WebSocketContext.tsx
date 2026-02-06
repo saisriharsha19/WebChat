@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from './AuthContext.tsx';
 import { API_ENDPOINTS } from './lib/api.ts';
 import { db } from './lib/db.ts';

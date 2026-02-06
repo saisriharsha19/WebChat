@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 import { useAuth } from '../AuthContext';
-import { User, Room } from '../types';
+import { Room } from '../types';
 
 interface RoomListProps {
     currentRoomId: number | null;
