@@ -31,9 +31,9 @@ export default function LoginPage() {
     return (
         <div className="min-h-screen w-full flex items-center justify-center bg-[#0a0a0b] relative overflow-hidden">
 
-            <div className="w-full max-w-[380px] p-8 m-4 glass-panel rounded-2xl relative z-10 animate-fade-in border border-white/5 shadow-2xl backdrop-blur-xl bg-[#121417]/60">
+            <div className="w-full max-w-[380px] p-8 m-4 glass-panel rounded-2xl relative z-10 animate-fade-in border border-white/5 shadow-2xl backdrop-blur-xl bg-[#111113]/60">
                 <div className="mb-8 text-center">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <div className="w-12 h-12 bg-[#6366f1] rounded-xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-[#6366f1]/20">
                         <svg className="text-white" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                     </div>
                     <h1 className="text-[24px] font-bold text-white mb-2 tracking-tight">{isLogin ? 'Welcome back' : 'Create Account'}</h1>
@@ -54,7 +54,7 @@ export default function LoginPage() {
                             <label className="block text-[11px] font-bold text-txt-tertiary uppercase tracking-wider mb-1.5 ml-1">Username</label>
                             <input
                                 type="text"
-                                className="w-full bg-[#0b0c0e]/50 border border-[#2a2d32] focus:border-indigo-500 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
+                                className="w-full bg-[#0a0a0b]/50 border border-[#3f3f46] focus:border-[#6366f1] rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-[#6366f1]/50 transition-all duration-200"
                                 placeholder="Enter username"
                                 value={username}
                                 onChange={e => setUsername(e.target.value)}
@@ -67,7 +67,7 @@ export default function LoginPage() {
                                 <label className="block text-[11px] font-bold text-txt-tertiary uppercase tracking-wider mb-1.5 ml-1">Email</label>
                                 <input
                                     type="email"
-                                    className="w-full bg-[#0b0c0e]/50 border border-[#2a2d32] focus:border-indigo-500 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
+                                    className="w-full bg-[#0a0a0b]/50 border border-[#3f3f46] focus:border-[#6366f1] rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-[#6366f1]/50 transition-all duration-200"
                                     placeholder="name@company.com"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
@@ -80,7 +80,7 @@ export default function LoginPage() {
                             <label className="block text-[11px] font-bold text-txt-tertiary uppercase tracking-wider mb-1.5 ml-1">Password</label>
                             <input
                                 type="password"
-                                className="w-full bg-[#0b0c0e]/50 border border-[#2a2d32] focus:border-indigo-500 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
+                                className="w-full bg-[#0a0a0b]/50 border border-[#3f3f46] focus:border-[#6366f1] rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-txt-tertiary focus:outline-none focus:ring-1 focus:ring-[#6366f1]/50 transition-all duration-200"
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
@@ -92,7 +92,7 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium h-[44px] rounded-lg flex items-center justify-center transition-all duration-200 mt-6 shadow-lg shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium h-[44px] rounded-lg flex items-center justify-center transition-all duration-200 mt-6 shadow-lg shadow-[#6366f1]/20 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

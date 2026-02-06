@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import ChatRoom from './ChatRoom';
 import { RoomList } from './RoomList';
-import { UserList } from './UserList';
 import { CreateGroupModal } from './CreateGroupModal';
 import { Layout } from './Layout';
+import { EmptyState } from './EmptyState';
+import { DirectoryModal } from './DirectoryModal';
+import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 
 export default function Dashboard() {
     const { user, logout } = useAuth();
     const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
     const [showCreateGroup, setShowCreateGroup] = useState(false);
-    const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
+    const [showDirectory, setShowDirectory] = useState(false);
 
     // Mobile sidebar state
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -32,7 +34,7 @@ export default function Dashboard() {
                         setCurrentRoomId(id);
                         setMobileSidebarOpen(false); // Close sidebar on mobile select
                     }}
-                    onNewDM={() => setRightSidebarOpen(true)}
+                    onNewDM={() => setShowDirectory(true)}
                     onNewGroup={() => setShowCreateGroup(true)}
                 />
             </div>
@@ -82,47 +84,37 @@ export default function Dashboard() {
                 <ChatRoom
                     roomId={currentRoomId}
                     onBack={() => {
-                        // On mobile back, we just modify this content, but maybe we want to unselect room?
-                        // If Layout handles responsiveness, onBack might just be setRoom(null) for mobile.
                         setCurrentRoomId(null)
                     }}
-                    onToggleDirectory={() => setRightSidebarOpen(!rightSidebarOpen)}
                 />
             ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-txt-tertiary p-4 text-center">
-                    <div className="w-16 h-16 rounded-[12px] bg-surface border border-border flex items-center justify-center mb-4">
-                        <svg className="text-txt-secondary" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                    </div>
-                    <h3 className="text-[14px] font-medium text-txt-primary">No conversation selected</h3>
-                    <p className="text-[13px] mt-1">Choose a channel from the menu to start chatting.</p>
-                </div>
-            )}
-
-            {/* Right Sidebar (Directory) - kept absolute for now */}
-            {rightSidebarOpen && (
-                <div className="absolute right-0 top-0 bottom-0 w-[280px] bg-[#0f1013] border-l border-border flex flex-col z-40 shadow-2xl animate-slide-in">
-                    <div className="h-[48px] px-4 flex items-center justify-between border-b border-border">
-                        <span className="text-[12px] font-semibold uppercase tracking-wider text-txt-secondary">Directory</span>
-                        <button onClick={() => setRightSidebarOpen(false)} className="text-txt-tertiary hover:text-txt-primary">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-3">
-                        <UserList
-                            onSelectUser={async (uid) => {
-                                try {
-                                    const { fetchWithAuth, API_ENDPOINTS } = await import('../lib/api');
-                                    const room = await fetchWithAuth(API_ENDPOINTS.createDM(uid), { method: 'POST' });
-                                    setCurrentRoomId(room.id);
-                                    setRightSidebarOpen(false);
-                                } catch (e) {
-                                    console.error("Failed to create DM", e);
-                                    alert("Could not start conversation");
-                                }
-                            }}
-                        />
-                    </div>
-                </div>
+                <EmptyState
+                    icon={
+                        <div className="w-20 h-20 rounded-xl bg-surface-hover border border-border flex items-center justify-center">
+                            <svg className="text-txt-secondary" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                        </div>
+                    }
+                    heading="No conversation selected"
+                    description="Choose a channel from the sidebar or start a new conversation to begin chatting with your team."
+                    actions={
+                        <>
+                            <button
+                                onClick={() => setShowDirectory(true)}
+                                className="saas-btn-primary min-w-[140px]"
+                            >
+                                New Message
+                            </button>
+                            <button
+                                onClick={() => setShowCreateGroup(true)}
+                                className="saas-btn min-w-[140px]"
+                            >
+                                Create Group
+                            </button>
+                        </>
+                    }
+                />
             )}
 
             {/* Modals */}
@@ -131,6 +123,23 @@ export default function Dashboard() {
                     onClose={() => setShowCreateGroup(false)}
                     onCreated={(newRoom) => {
                         setCurrentRoomId(newRoom.id);
+                    }}
+                />
+            )}
+
+            {showDirectory && (
+                <DirectoryModal
+                    onClose={() => setShowDirectory(false)}
+                    onSelectUser={async (uid) => {
+                        try {
+                            const room = await fetchWithAuth(API_ENDPOINTS.createDM(uid), { method: 'POST' });
+                            setCurrentRoomId(room.id);
+                            setShowDirectory(false);
+                            setMobileSidebarOpen(false);
+                        } catch (e) {
+                            console.error("Failed to create DM", e);
+                            alert("Could not start conversation");
+                        }
                     }}
                 />
             )}

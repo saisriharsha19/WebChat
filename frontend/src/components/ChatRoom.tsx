@@ -9,10 +9,9 @@ import { fetchWithAuth, API_ENDPOINTS, API_URL } from '../lib/api';
 interface ChatRoomProps {
     roomId: number;
     onBack?: () => void;
-    onToggleDirectory?: () => void;
 }
 
-export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoomProps) {
+export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
     const { sendMessage, joinRoom, isConnected, lastUpdate } = useWebSocket();
     const { user } = useAuth();
     const [inputValue, setInputValue] = useState('');
@@ -70,7 +69,7 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
                     </button>
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-inner">
+                        <div className="w-8 h-8 rounded-full bg-[#6366f1] flex items-center justify-center text-white font-bold text-sm shadow-inner">
                             #
                         </div>
                         <div>
@@ -81,18 +80,6 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div className="flex items-center gap-1">
-                    {onToggleDirectory && (
-                        <button
-                            onClick={onToggleDirectory}
-                            className="p-2 text-txt-secondary hover:text-white hover:bg-white/5 rounded-full transition-colors active:scale-95"
-                            title="Room Details"
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                        </button>
-                    )}
                 </div>
             </div>
 
@@ -128,7 +115,7 @@ export default function ChatRoom({ roomId, onBack, onToggleDirectory }: ChatRoom
                                 <div className={`
                                     relative px-3.5 py-2 text-[14.5px] shadow-sm transition-all duration-200
                                     ${isOwn
-                                        ? 'bg-[#5e6ad2] text-white rounded-2xl rounded-tr-sm border border-transparent shadow-[0_2px_8px_rgba(94,106,210,0.25)]'
+                                        ? 'bg-[#6366f1] text-white rounded-2xl rounded-tr-sm border border-transparent shadow-[0_2px_8px_rgba(99,102,241,0.25)]'
                                         : 'bg-surface-hover/80 backdrop-blur-sm border border-white/5 text-txt-primary rounded-2xl rounded-tl-sm hover:border-white/10'}
                                 `}>
                                     <div className="break-words whitespace-pre-wrap leading-relaxed">{msg.content}</div>

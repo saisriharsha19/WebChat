@@ -12,7 +12,7 @@ export function Layout({ sidebarContent, children, sidebarOpen, onSidebarClose }
         <div className="flex w-full h-full bg-surface-root overflow-hidden relative">
 
             {/* Desktop Sidebar */}
-            <aside className="hidden md:flex flex-col w-[280px] h-full bg-surface-sidebar border-r border-border flex-shrink-0 z-20">
+            <aside className="hidden md:flex flex-col w-[260px] h-full bg-surface-sidebar border-r border-border flex-shrink-0 z-20">
                 {sidebarContent}
             </aside>
 

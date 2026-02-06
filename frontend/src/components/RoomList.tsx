@@ -49,26 +49,26 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
     };
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto px-2 py-4 space-y-6">
+        <div className="flex flex-col h-full overflow-y-auto px-2 py-3 space-y-5">
 
             {/* Search */}
-            <div className="px-2 mb-2">
+            <div className="px-2">
                 <div className="relative">
                     <input
-                        className="w-full bg-[#1a1d21] border border-[#2a2d32] rounded-[8px] pl-9 pr-3 py-2 text-xs text-[#ededef] placeholder:text-[#60646c] focus:border-[#5e6ad2] focus:ring-1 focus:ring-[#5e6ad2] transition-all"
+                        className="w-full bg-[#18181b] border border-[#3f3f46] rounded-[8px] pl-9 pr-3 py-2.5 text-[13px] text-[#fafafa] placeholder:text-[#71717a] focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] transition-all shadow-sm"
                         placeholder="Find groups or people..."
                     />
-                    <div className="absolute left-3 top-2 text-[#60646c]">
+                    <div className="absolute left-3 top-2.5 text-[#71717a]">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     </div>
                 </div>
             </div>
 
             {/* Groups */}
-            <div className="space-y-1">
-                <div className="flex items-center justify-between px-3 mb-2 group">
-                    <h3 className="text-[11px] font-bold text-[#60646c] uppercase tracking-wider">Groups</h3>
-                    <button onClick={onNewGroup} className="text-[#60646c] hover:text-[#ededef] hover:bg-white/10 p-1 rounded transition-all" title="Create Group">
+            <div className="space-y-0.5">
+                <div className="flex items-center justify-between px-3 mb-3 group">
+                    <h3 className="text-[12px] font-bold text-[#a1a1aa] uppercase tracking-wider">Groups</h3>
+                    <button onClick={onNewGroup} className="text-[#a1a1aa] hover:text-[#fafafa] hover:bg-white/10 p-1.5 rounded transition-all" title="Create Group">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
                     </button>
                 </div>
@@ -76,25 +76,25 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
                     <button
                         key={room.id}
                         onClick={() => onSelectRoom(room.id)}
-                        className={`w-full text-left px-3 py-2 rounded-[8px] text-[13px] font-medium transition-all duration-200 flex items-center gap-3 group
+                        className={`w-full text-left px-3 py-2.5 rounded-[8px] text-[14px] font-medium transition-all duration-200 flex items-center gap-3 group hover:scale-[1.01]
                               ${currentRoomId === room.id
-                                ? 'bg-[#5e6ad2]/10 text-[#ededef] border border-[#5e6ad2]/20'
-                                : 'text-[#9da2ae] border border-transparent hover:bg-[#121417] hover:text-[#ededef]'}`}
+                                ? 'bg-[#6366f1]/10 text-[#fafafa] border border-[#6366f1]/20 shadow-sm'
+                                : 'text-[#a1a1aa] border border-transparent hover:bg-[#111113] hover:text-[#fafafa]'}`}
                     >
-                        <div className={`w-5 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-bold transition-colors ${currentRoomId === room.id ? 'bg-[#5e6ad2] text-white' : 'bg-[#2a2d32] text-[#9da2ae] group-hover:bg-[#3f434a]'}`}>
+                        <div className={`w-5 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-bold transition-colors ${currentRoomId === room.id ? 'bg-[#6366f1] text-white' : 'bg-[#3f3f46] text-[#a1a1aa] group-hover:bg-[#52525b]'}`}>
                             #
                         </div>
                         <span className="truncate flex-1">{room.name || 'Unnamed'}</span>
                     </button>
                 ))}
-                {groups.length === 0 && <div className="px-3 text-[11px] text-[#60646c] italic">No projects yet</div>}
+                {groups.length === 0 && <div className="px-3 py-2 text-[12px] text-[#71717a] italic">No projects yet</div>}
             </div>
 
             {/* DMs */}
-            <div className="space-y-1">
-                <div className="flex items-center justify-between px-3 mb-2 group">
-                    <h3 className="text-[11px] font-bold text-[#60646c] uppercase tracking-wider">Messages</h3>
-                    <button onClick={onNewDM} className="text-[#60646c] hover:text-[#ededef] hover:bg-white/10 p-1 rounded transition-all" title="New Message">
+            <div className="space-y-0.5">
+                <div className="flex items-center justify-between px-3 mb-3 group">
+                    <h3 className="text-[12px] font-bold text-[#a1a1aa] uppercase tracking-wider">Messages</h3>
+                    <button onClick={onNewDM} className="text-[#a1a1aa] hover:text-[#fafafa] hover:bg-white/10 p-1.5 rounded transition-all" title="New Message">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
                     </button>
                 </div>
@@ -102,13 +102,13 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
                     <button
                         key={room.id}
                         onClick={() => onSelectRoom(room.id)}
-                        className={`w-full text-left px-3 py-2 rounded-[8px] text-[13px] font-medium transition-all duration-200 flex items-center gap-3
+                        className={`w-full text-left px-3 py-2.5 rounded-[8px] text-[14px] font-medium transition-all duration-200 flex items-center gap-3 hover:scale-[1.01]
                                 ${currentRoomId === room.id
-                                ? 'bg-[#5e6ad2] text-white shadow-lg shadow-[#5e6ad2]/20'
-                                : 'text-[#9da2ae] hover:bg-[#121417] hover:text-[#ededef]'}`}
+                                ? 'bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/20'
+                                : 'text-[#a1a1aa] hover:bg-[#111113] hover:text-[#fafafa]'}`}
                     >
                         <div className="relative">
-                            <div className={`w-2 h-2 rounded-full ${currentRoomId === room.id ? 'bg-white' : 'bg-[#2E9B48]'}`}></div>
+                            <div className={`w-2.5 h-2.5 rounded-full shadow-sm ${currentRoomId === room.id ? 'bg-white' : 'bg-[#22c55e] shadow-[0_0_4px_rgba(34,197,94,0.4)]'}`}></div>
                         </div>
                         <span className="truncate flex-1">{getDMName(room)}</span>
                     </button>
