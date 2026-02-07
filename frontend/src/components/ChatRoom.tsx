@@ -24,6 +24,17 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         [roomId]
     );
 
+    // Fetch room details if missing (for call button)
+    useEffect(() => {
+        if (!roomDetails && roomId) {
+            fetchWithAuth(API_ENDPOINTS.getRoom(roomId))
+                .then(async (room) => {
+                    await db.rooms.put(room);
+                })
+                .catch(err => console.error("Failed to fetch room details:", err));
+        }
+    }, [roomId, roomDetails]);
+
     // Live query from IndexedDB
     const messages = useLiveQuery(
         () =>
@@ -185,7 +196,7 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                                                     setEditingMessageId(msg.id || null);
                                                     setInputValue(msg.content);
                                                 }}
-                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-white hover:bg-white/20 rounded"
+                                                className="md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity p-0.5 hover:text-white hover:bg-white/20 rounded text-white/70"
                                                 title="Edit"
                                             >
                                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>

@@ -98,3 +98,23 @@ async def get_my_rooms(
     ).all()
     
     return rooms
+
+@router.get("/{room_id}", response_model=RoomResponse)
+async def get_room_details(
+    room_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    room = db.query(Room).options(
+        joinedload(Room.members).joinedload(RoomMember.user)
+    ).filter(Room.id == room_id).first()
+    
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+        
+    # Check if user is member
+    is_member = any(m.user_id == current_user.id for m in room.members)
+    if not is_member:
+        raise HTTPException(status_code=403, detail="Not a member of this room")
+        
+    return room

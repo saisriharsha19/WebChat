@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
 
     // Rooms
     getRooms: `${API_URL}/rooms/`,
+    getRoom: (roomId: number) => `${API_URL}/rooms/${roomId}`,
     createDM: (userId: number) => `${API_URL}/rooms/dm?target_user_id=${userId}`,
     createGroup: `${API_URL}/rooms/group`,
 
