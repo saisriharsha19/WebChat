@@ -16,10 +16,15 @@ interface WebSocketContextType {
     isConnected: boolean;
     lastUpdate: number;
     onlineUsers: Map<number, string>;
-    incomingCall: { callerId: number, sdp: any } | null;
+    callState: {
+        status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
+        userId?: number;
+        sdp?: any;
+    };
     startCall: (targetUserId: number) => Promise<{ pc: RTCPeerConnection, stream: MediaStream }>;
     answerIncomingCall: () => Promise<{ pc: RTCPeerConnection, stream: MediaStream } | undefined>;
     rejectIncomingCall: () => void;
+    endCall: () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -33,10 +38,17 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const reconnectAttemptsRef = useRef(0);
 
     const [onlineUsers, setOnlineUsers] = useState<Map<number, string>>(new Map());
-    const [incomingCall, setIncomingCall] = useState<{ callerId: number, sdp: any } | null>(null);
+
+    // Unified Call State
+    const [callState, setCallState] = useState<{
+        status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
+        userId?: number;
+        sdp?: any;
+    }>({ status: 'idle' });
 
     // WebRTC refs
     const peerConnection = useRef<RTCPeerConnection | null>(null);
+    const localStreamRef = useRef<MediaStream | null>(null);
 
     const connect = () => {
         if (!token) return;
@@ -68,7 +80,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             return newMap;
                         });
                     } else if (data.type === 'new_message') {
-                        // ... existing message logic ...
                         const msg = data.message;
                         await db.messages.put({
                             id: msg.id,
@@ -84,23 +95,26 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         });
                         setLastUpdate(Date.now());
                     } else if (data.type === 'call_offer') {
-                        setIncomingCall({ callerId: data.sender_id, sdp: data.sdp });
+                        setCallState({
+                            status: 'incoming',
+                            userId: data.sender_id,
+                            sdp: data.sdp
+                        });
                     } else if (data.type === 'call_answer') {
                         if (peerConnection.current) {
                             await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                            setCallState(prev => ({ ...prev, status: 'connected' }));
                         }
                     } else if (data.type === 'ice_candidate') {
                         if (peerConnection.current) {
                             await peerConnection.current.addIceCandidate(new RTCIceCandidate(data.candidate));
                         }
                     }
-                    // ... other message types ...
                 } catch (err) {
                     console.error('Error processing WebSocket message:', err);
                 }
             };
 
-            // ... existing onerror/onclose ...
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
             };
@@ -109,7 +123,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 console.log('WebSocket disconnected');
                 setIsConnected(false);
                 wsRef.current = null;
-                setOnlineUsers(new Map()); // Clear online users
+                setOnlineUsers(new Map());
 
                 if (token) {
                     const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttemptsRef.current));
@@ -125,7 +139,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    // ... useEffect ...
     useEffect(() => {
         if (token && user) {
             connect();
@@ -133,11 +146,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         return () => {
             if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             if (wsRef.current) wsRef.current.close();
-            if (peerConnection.current) peerConnection.current.close();
+            // Cleanup generic if needed, but handled by endCall usually
         };
     }, [token, user]);
 
-    // ... existing messaging methods ...
     const sendMessage = (roomId: number, content: string) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
@@ -146,7 +158,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 content,
             }));
         } else {
-            // Save to IndexedDB with pending status
             const tempId = `temp-${Date.now()}-${Math.random()}`;
             db.messages.add({
                 content,
@@ -163,8 +174,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    // New WebRTC methods
     const startCall = async (targetUserId: number) => {
+        setCallState({ status: 'calling', userId: targetUserId });
+
         const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
         });
@@ -180,8 +192,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             }
         };
 
-        // Create stream (audio only for now per request "voice call")
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStreamRef.current = stream;
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
         const offer = await pc.createOffer();
@@ -199,7 +211,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     const answerIncomingCall = async () => {
-        if (!incomingCall) return;
+        if (callState.status !== 'incoming' || !callState.userId) return;
 
         const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -210,15 +222,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({
                     type: 'ice_candidate',
-                    target_user_id: incomingCall.callerId,
+                    target_user_id: callState.userId,
                     candidate: event.candidate
                 }));
             }
         };
 
-        await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.sdp));
+        if (callState.sdp) {
+            await pc.setRemoteDescription(new RTCSessionDescription(callState.sdp));
+        }
 
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStreamRef.current = stream;
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
         const answer = await pc.createAnswer();
@@ -227,19 +242,30 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'call_answer',
-                target_user_id: incomingCall.callerId,
+                target_user_id: callState.userId,
                 sdp: answer
             }));
         }
 
-        setIncomingCall(null);
-        setIncomingCall(null);
+        setCallState(prev => ({ ...prev, status: 'connected' }));
         return { pc, stream };
     };
 
     const rejectIncomingCall = () => {
-        setIncomingCall(null);
+        endCall();
         // Optional: send reject message
+    };
+
+    const endCall = () => {
+        setCallState({ status: 'idle' });
+        if (peerConnection.current) {
+            peerConnection.current.close();
+            peerConnection.current = null;
+        }
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(t => t.stop());
+            localStreamRef.current = null;
+        }
     };
 
     const joinRoom = (roomId: number) => {
@@ -274,7 +300,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         <WebSocketContext.Provider
             value={{
                 sendMessage, joinRoom, leaveRoom, markAsRead, isConnected, lastUpdate,
-                onlineUsers, incomingCall, startCall, answerIncomingCall, rejectIncomingCall
+                onlineUsers, callState, startCall, answerIncomingCall, rejectIncomingCall, endCall
             }}
         >
             {children}
