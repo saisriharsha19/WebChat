@@ -63,7 +63,15 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
             }).then(() => {
                 setEditingMessageId(null);
                 setInputValue('');
-            }).catch(() => alert('Edit failed'));
+            }).catch(async (err) => {
+                console.error("Edit failed:", err);
+                let msg = 'Edit failed';
+                try {
+                    const data = await err.json();
+                    msg = data.detail || msg;
+                } catch (e) { }
+                alert(msg);
+            });
         } else {
             sendMessage(roomId, inputValue.trim());
             setInputValue('');
@@ -230,13 +238,28 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
 
                     {/* Toolbar inside input */}
                     <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
                             <div className="hover:bg-white/5 p-1.5 rounded-full transition-colors">
                                 <FileUploader roomId={roomId} onUploadComplete={() => { }} />
                             </div>
-                            <div className="hidden md:block text-[10px] text-txt-tertiary ml-2 pointer-events-none select-none">
-                                {editingMessageId ? 'Editing...' : 'Enter to send'}
+                            <div className="text-[10px] text-txt-tertiary pointer-events-none select-none">
+                                {editingMessageId ? (
+                                    <span className="text-accent font-medium animate-pulse">Editing...</span>
+                                ) : (
+                                    <span className="hidden md:inline">Enter to send</span>
+                                )}
                             </div>
+                            {editingMessageId && (
+                                <button
+                                    onClick={() => {
+                                        setEditingMessageId(null);
+                                        setInputValue('');
+                                    }}
+                                    className="text-[10px] text-red-400 hover:text-red-300 px-2 py-0.5 bg-red-500/10 rounded-md transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            )}
                         </div>
 
                         <button

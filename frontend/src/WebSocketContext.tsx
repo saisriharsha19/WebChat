@@ -21,6 +21,7 @@ interface WebSocketContextType {
         userId?: number;
         sdp?: any;
     };
+    remoteStream: MediaStream | null;
     startCall: (targetUserId: number) => Promise<{ pc: RTCPeerConnection, stream: MediaStream }>;
     answerIncomingCall: () => Promise<{ pc: RTCPeerConnection, stream: MediaStream } | undefined>;
     rejectIncomingCall: () => void;
@@ -45,6 +46,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         userId?: number;
         sdp?: any;
     }>({ status: 'idle' });
+    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
     // WebRTC refs
     const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -176,6 +178,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     const startCall = async (targetUserId: number) => {
         setCallState({ status: 'calling', userId: targetUserId });
+        setRemoteStream(null);
 
         const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -190,6 +193,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     candidate: event.candidate
                 }));
             }
+        };
+
+        pc.ontrack = (event) => {
+            setRemoteStream(event.streams[0]);
         };
 
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -228,6 +235,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             }
         };
 
+        pc.ontrack = (event) => {
+            setRemoteStream(event.streams[0]);
+        };
+
         if (callState.sdp) {
             await pc.setRemoteDescription(new RTCSessionDescription(callState.sdp));
         }
@@ -258,6 +269,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     const endCall = () => {
         setCallState({ status: 'idle' });
+        setRemoteStream(null);
         if (peerConnection.current) {
             peerConnection.current.close();
             peerConnection.current = null;
@@ -300,7 +312,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         <WebSocketContext.Provider
             value={{
                 sendMessage, joinRoom, leaveRoom, markAsRead, isConnected, lastUpdate,
-                onlineUsers, callState, startCall, answerIncomingCall, rejectIncomingCall, endCall
+                onlineUsers, callState, remoteStream, startCall, answerIncomingCall, rejectIncomingCall, endCall
             }}
         >
             {children}
