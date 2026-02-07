@@ -17,6 +17,21 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
     const [inputValue, setInputValue] = useState('');
     const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false);
+    const groupMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (groupMenuRef.current && !groupMenuRef.current.contains(event.target as Node)) {
+                setIsGroupMenuOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
     // Live query for room details to get type and members
     const roomDetails = useLiveQuery(
@@ -188,57 +203,62 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                     )}
 
                     {roomDetails?.type === 'group' && (
-                        <div className="relative group/menu">
+                        <div className="relative" ref={groupMenuRef}>
                             <button
-                                className="p-2 text-txt-tertiary hover:text-txt-primary hover:bg-surface-hover rounded-full transition-all active:scale-95"
+                                onClick={() => setIsGroupMenuOpen(!isGroupMenuOpen)}
+                                className={`p-2 rounded-full transition-all active:scale-95 ${isGroupMenuOpen ? 'text-txt-primary bg-surface-hover' : 'text-txt-tertiary hover:text-txt-primary hover:bg-surface-hover'}`}
                                 title="Group Options"
                             >
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
                             </button>
 
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-surface-hover border border-white/10 rounded-xl shadow-xl backdrop-blur-xl invisible opacity-0 translate-y-2 group-hover/menu:visible group-hover/menu:opacity-100 group-hover/menu:translate-y-0 transition-all duration-200 z-50 overflow-hidden">
-                                <div className="p-1">
-                                    <button
-                                        onClick={async () => {
-                                            if (confirm("Are you sure you want to leave this group?")) {
-                                                try {
-                                                    await fetchWithAuth(API_ENDPOINTS.leaveRoom(roomId), { method: 'POST' });
-                                                    await db.rooms.delete(roomId); // Remove locally
-                                                    if (onBack) onBack();
-                                                } catch (err) {
-                                                    console.error("Failed to leave room", err);
-                                                    alert("Failed to leave room");
-                                                }
-                                            }
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-sm text-txt-secondary hover:text-txt-primary hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2"
-                                    >
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                                        Leave Group
-                                    </button>
-
-                                    {Number(roomDetails.created_by) === Number(user?.id) && (
+                            {isGroupMenuOpen && (
+                                <div className="absolute right-0 top-full mt-2 w-48 bg-surface-hover border border-white/10 rounded-xl shadow-xl backdrop-blur-xl animate-fade-in z-50 overflow-hidden">
+                                    <div className="p-1">
                                         <button
                                             onClick={async () => {
-                                                if (confirm("Are you sure you want to delete this group? This cannot be undone.")) {
+                                                setIsGroupMenuOpen(false);
+                                                if (confirm("Are you sure you want to leave this group?")) {
                                                     try {
-                                                        await fetchWithAuth(API_ENDPOINTS.deleteRoom(roomId), { method: 'DELETE' });
+                                                        await fetchWithAuth(API_ENDPOINTS.leaveRoom(roomId), { method: 'POST' });
                                                         await db.rooms.delete(roomId); // Remove locally
                                                         if (onBack) onBack();
                                                     } catch (err) {
-                                                        console.error("Failed to delete room", err);
-                                                        alert("Failed to delete room");
+                                                        console.error("Failed to leave room", err);
+                                                        alert("Failed to leave room");
                                                     }
                                                 }
                                             }}
-                                            className="w-full text-left px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors flex items-center gap-2 mt-1"
+                                            className="w-full text-left px-3 py-2 text-sm text-txt-secondary hover:text-txt-primary hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2"
                                         >
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                            Delete Group
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                                            Leave Group
                                         </button>
-                                    )}
+
+                                        {Number(roomDetails.created_by) === Number(user?.id) && (
+                                            <button
+                                                onClick={async () => {
+                                                    setIsGroupMenuOpen(false);
+                                                    if (confirm("Are you sure you want to delete this group? This cannot be undone.")) {
+                                                        try {
+                                                            await fetchWithAuth(API_ENDPOINTS.deleteRoom(roomId), { method: 'DELETE' });
+                                                            await db.rooms.delete(roomId); // Remove locally
+                                                            if (onBack) onBack();
+                                                        } catch (err) {
+                                                            console.error("Failed to delete room", err);
+                                                            alert("Failed to delete room");
+                                                        }
+                                                    }
+                                                }}
+                                                className="w-full text-left px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors flex items-center gap-2 mt-1"
+                                            >
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                                Delete Group
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
                 </div>
