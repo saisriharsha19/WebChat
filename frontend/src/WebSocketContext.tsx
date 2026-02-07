@@ -51,6 +51,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     // WebRTC refs
     const peerConnection = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
+    const iceCandidatesBuffer = useRef<RTCIceCandidate[]>([]);
 
     const connect = () => {
         if (!token) return;
@@ -96,20 +97,40 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             attachments: msg.attachments || []
                         });
                         setLastUpdate(Date.now());
+                    } else if (data.type === 'message_updated') {
+                        const msg = data.message;
+                        // Update existing message in DB
+                        const existing = await db.messages.get(msg.id);
+                        if (existing) {
+                            await db.messages.put({
+                                ...existing,
+                                content: msg.content,
+                                updated_at: new Date(msg.updated_at),
+                                is_edited: true
+                            });
+                            setLastUpdate(Date.now());
+                        }
                     } else if (data.type === 'call_offer') {
                         setCallState({
                             status: 'incoming',
                             userId: data.sender_id,
                             sdp: data.sdp
                         });
+                        // Clear buffer on new offer
+                        iceCandidatesBuffer.current = [];
                     } else if (data.type === 'call_answer') {
                         if (peerConnection.current) {
                             await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
                             setCallState(prev => ({ ...prev, status: 'connected' }));
                         }
                     } else if (data.type === 'ice_candidate') {
-                        if (peerConnection.current) {
-                            await peerConnection.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        const candidate = new RTCIceCandidate(data.candidate);
+                        if (peerConnection.current && peerConnection.current.remoteDescription) {
+                            await peerConnection.current.addIceCandidate(candidate);
+                        } else {
+                            // Buffer candidate
+                            console.log("Buffering ICE candidate");
+                            iceCandidatesBuffer.current.push(candidate);
                         }
                     }
                 } catch (err) {
@@ -176,9 +197,24 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const processBufferedCandidates = async (pc: RTCPeerConnection) => {
+        while (iceCandidatesBuffer.current.length > 0) {
+            const candidate = iceCandidatesBuffer.current.shift();
+            if (candidate) {
+                try {
+                    console.log("Adding buffered ICE candidate");
+                    await pc.addIceCandidate(candidate);
+                } catch (e) {
+                    console.error("Error adding buffered candidate", e);
+                }
+            }
+        }
+    };
+
     const startCall = async (targetUserId: number) => {
         setCallState({ status: 'calling', userId: targetUserId });
         setRemoteStream(null);
+        iceCandidatesBuffer.current = [];
 
         const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -196,6 +232,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         };
 
         pc.ontrack = (event) => {
+            console.log("Track received:", event.streams[0]);
             setRemoteStream(event.streams[0]);
         };
 
@@ -236,11 +273,14 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         };
 
         pc.ontrack = (event) => {
+            console.log("Track received:", event.streams[0]);
             setRemoteStream(event.streams[0]);
         };
 
         if (callState.sdp) {
             await pc.setRemoteDescription(new RTCSessionDescription(callState.sdp));
+            // After setting remote description, we can add candidates
+            await processBufferedCandidates(pc);
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });

@@ -54,11 +54,14 @@ export function VoiceCallModal() {
     };
 
     // Hidden audio element for remote stream
+    // Audio element ref
+    const audioRef = useRef<HTMLAudioElement>(null);
+
     useEffect(() => {
-        if (remoteStream) {
-            const audio = new Audio();
-            audio.srcObject = remoteStream;
-            audio.play().catch(e => console.error("Auto-play failed", e));
+        if (remoteStream && audioRef.current) {
+            console.log("Setting remote stream to audio element");
+            audioRef.current.srcObject = remoteStream;
+            audioRef.current.play().catch(e => console.error("Auto-play failed", e));
         }
     }, [remoteStream]);
 
@@ -69,6 +72,8 @@ export function VoiceCallModal() {
             <div className="bg-surface-root border border-border-strong rounded-2xl p-8 w-[360px] text-center shadow-2xl relative overflow-hidden">
                 {/* Background glow effect */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-accent/20 blur-[80px] rounded-full pointer-events-none"></div>
+
+                <audio ref={audioRef} autoPlay hidden />
 
                 <div className="relative z-10 flex flex-col items-center">
                     {callState.status === 'incoming' && (
