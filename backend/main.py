@@ -5,7 +5,7 @@ import os
 
 from contextlib import asynccontextmanager
 from database import engine, Base
-from routers import auth_router, api_router, websocket_router, room_router, message_router, file_router, sync_router
+from routers import auth_router, api_router, websocket_router, room_router, message_router, file_router, sync_router, friend_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +43,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth_router.router)
 app.include_router(api_router.router)
+app.include_router(friend_router.router)
 app.include_router(room_router.router)
 app.include_router(message_router.router)
 app.include_router(file_router.router)

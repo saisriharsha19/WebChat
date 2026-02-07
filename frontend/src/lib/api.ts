@@ -32,6 +32,14 @@ export const API_ENDPOINTS = {
     // Sync
     sync: `${API_URL}/api/sync`,
 
+    // Friends
+    getFriends: `${API_URL}/friends/`,
+    getFriendRequestsReceived: `${API_URL}/friends/requests/received`,
+    getFriendRequestsSent: `${API_URL}/friends/requests/sent`,
+    searchUsers: (query: string) => `${API_URL}/friends/search?query=${query}`,
+    sendFriendRequest: (userId: number) => `${API_URL}/friends/request/${userId}`,
+    respondFriendRequest: (requestId: number, action: 'accept' | 'reject') => `${API_URL}/friends/request/${requestId}/${action}`,
+
     // WebSocket
     wsChat: (token: string) => `${WS_BASE_URL}/ws/chat?token=${encodeURIComponent(token)}`,
 };

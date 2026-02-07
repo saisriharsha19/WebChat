@@ -5,7 +5,8 @@ import { RoomList } from './RoomList';
 import { CreateGroupModal } from './CreateGroupModal';
 import { Layout } from './Layout';
 import { EmptyState } from './EmptyState';
-import { DirectoryModal } from './DirectoryModal';
+import { FriendManager } from './FriendManager';
+import { VoiceCallModal } from './VoiceCallModal';
 import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 
 export default function Dashboard() {
@@ -76,6 +77,8 @@ export default function Dashboard() {
             sidebarOpen={mobileSidebarOpen}
             onSidebarClose={() => setMobileSidebarOpen(false)}
         >
+            <VoiceCallModal />
+
             {/* Mobile Header (Only visible on mobile when room is selected or standard view) */}
             {!currentRoomId && (
                 <div className="md:hidden h-[48px] px-4 flex items-center border-b border-border bg-surface-sidebar">
@@ -110,7 +113,7 @@ export default function Dashboard() {
                                 onClick={() => setShowDirectory(true)}
                                 className="saas-btn-primary min-w-[140px]"
                             >
-                                New Message
+                                Friends & Search
                             </button>
                             <button
                                 onClick={() => setShowCreateGroup(true)}
@@ -134,20 +137,33 @@ export default function Dashboard() {
             )}
 
             {showDirectory && (
-                <DirectoryModal
-                    onClose={() => setShowDirectory(false)}
-                    onSelectUser={async (uid) => {
-                        try {
-                            const room = await fetchWithAuth(API_ENDPOINTS.createDM(uid), { method: 'POST' });
-                            setCurrentRoomId(room.id);
-                            setShowDirectory(false);
-                            setMobileSidebarOpen(false);
-                        } catch (e) {
-                            console.error("Failed to create DM", e);
-                            alert("Could not start conversation");
-                        }
-                    }}
-                />
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowDirectory(false)}>
+                    <div className="bg-surface-sidebar rounded-xl border border-border shadow-2xl overflow-hidden h-[600px] w-full max-w-md flex flex-col animate-fade-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
+                            <h2 className="text-txt-primary font-semibold text-sm">Friends & Directory</h2>
+                            <button
+                                onClick={() => setShowDirectory(false)}
+                                className="text-txt-tertiary hover:text-txt-primary transition-colors p-1 rounded hover:bg-surface-hover"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                        <FriendManager
+                            onSelectUser={async (uid) => {
+                                // Start DM
+                                try {
+                                    const room = await fetchWithAuth(API_ENDPOINTS.createDM(uid), { method: 'POST' });
+                                    setCurrentRoomId(room.id);
+                                    setShowDirectory(false);
+                                    setMobileSidebarOpen(false);
+                                } catch (e) {
+                                    console.error("Failed to create DM", e);
+                                    alert("Could not start conversation");
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
             )}
         </Layout>
     );

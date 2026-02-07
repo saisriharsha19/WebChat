@@ -137,3 +137,27 @@ class SyncRequest(BaseModel):
 class SyncResponse(BaseModel):
     synced_messages: List[MessageResponse]
     new_messages: List[MessageWithSender]
+
+# Friend Schemas
+class FriendRequestStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+class FriendRequestCreate(BaseModel):
+    receiver_id: int
+
+class FriendRequestResponse(BaseModel):
+    id: int
+    sender_id: int
+    receiver_id: int
+    status: FriendRequestStatus
+    created_at: datetime
+    
+    sender: Optional[UserResponse] = None
+    receiver: Optional[UserResponse] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class FriendResponse(UserResponse):
+    friendship_status: Optional[str] = None # 'friend', 'pending_sent', 'pending_received', 'none'

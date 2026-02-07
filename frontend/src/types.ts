@@ -48,3 +48,18 @@ export interface Message {
     attachments: FileAttachment[];
     sender: User;
 }
+
+export interface FriendRequest {
+    id: number;
+    sender_id: number;
+    receiver_id: number;
+    status: 'pending' | 'accepted' | 'rejected';
+    created_at: string;
+    sender?: User;
+    receiver?: User;
+}
+
+export interface UserWithStatus extends User {
+    status?: 'online' | 'offline';
+    friendship_status?: 'friend' | 'pending_sent' | 'pending_received' | 'none';
+}

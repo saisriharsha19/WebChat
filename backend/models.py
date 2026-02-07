@@ -27,6 +27,9 @@ class User(Base):
     read_receipts = relationship("ReadReceipt", back_populates="user")
     room_memberships = relationship("RoomMember", back_populates="user")
     created_rooms = relationship("Room", back_populates="creator")
+    
+    sent_friend_requests = relationship("FriendRequest", foreign_keys="FriendRequest.sender_id", back_populates="sender")
+    received_friend_requests = relationship("FriendRequest", foreign_keys="FriendRequest.receiver_id", back_populates="receiver")
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -94,3 +97,21 @@ class ReadReceipt(Base):
     
     message = relationship("Message", back_populates="read_receipts")
     user = relationship("User", back_populates="read_receipts")
+
+class FriendRequestStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+class FriendRequest(Base):
+    __tablename__ = "friend_requests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String, default=FriendRequestStatus.PENDING)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_friend_requests")
+    receiver = relationship("User", foreign_keys=[receiver_id], back_populates="received_friend_requests")
