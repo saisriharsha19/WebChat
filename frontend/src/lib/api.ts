@@ -19,6 +19,8 @@ export const API_ENDPOINTS = {
     getRoom: (roomId: number) => `${API_URL}/rooms/${roomId}`,
     createDM: (userId: number) => `${API_URL}/rooms/dm?target_user_id=${userId}`,
     createGroup: `${API_URL}/rooms/group`,
+    leaveRoom: (roomId: number) => `${API_URL}/rooms/${roomId}/leave`,
+    deleteRoom: (roomId: number) => `${API_URL}/rooms/${roomId}`,
 
     // Messages
     getMessages: (roomId: number, skip = 0, limit = 50) =>

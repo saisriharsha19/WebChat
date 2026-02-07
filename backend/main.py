@@ -9,11 +9,36 @@ from routers import auth_router, api_router, websocket_router, room_router, mess
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Check if we should reset the database
+    if os.getenv("RESET_DB") == "True":
+        print("⚠️ RESETTING DATABASE (RESET_DB=True) ⚠️")
+        try:
+            Base.metadata.drop_all(bind=engine)
+            print("Database dropped successfully.")
+            
+            # Clean uploads directory
+            if os.path.exists(UPLOAD_DIR):
+                 print(f"🧹 Cleaning uploads directory: {UPLOAD_DIR}")
+                 for filename in os.listdir(UPLOAD_DIR):
+                     file_path = os.path.join(UPLOAD_DIR, filename)
+                     try:
+                         if os.path.isfile(file_path) or os.path.islink(file_path):
+                             os.unlink(file_path)
+                         elif os.path.isdir(file_path):
+                             import shutil
+                             shutil.rmtree(file_path)
+                     except Exception as e:
+                         print(f"Failed to delete {file_path}. Reason: {e}")
+
+        except Exception as e:
+            print(f"Error dropping database: {e}")
+
     # Create database tables if they don't exist
     Base.metadata.create_all(bind=engine)
     yield
 
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import os
 
 # Ensure uploads directory exists
@@ -23,8 +48,30 @@ if not os.path.exists(UPLOAD_DIR):
 
 app = FastAPI(title="WebChat API", lifespan=lifespan)
 
-# Mount static files
-app.mount("/media", StaticFiles(directory=UPLOAD_DIR), name="media")
+# Mount static files - REPLACED WITH SMART SERVING
+# app.mount("/media", StaticFiles(directory=UPLOAD_DIR), name="media")
+
+@app.get("/media/{filename}")
+async def serve_media(filename: str):
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    
+    # Check if a GZIP version exists
+    gzip_path = file_path + ".gz"
+    
+    if os.path.exists(gzip_path):
+        # Serve the compressed file with encoding header
+        import mimetypes
+        media_type, _ = mimetypes.guess_type(filename)
+        
+        return FileResponse(
+            gzip_path, 
+            media_type=media_type or "application/octet-stream",
+            headers={"Content-Encoding": "gzip"}
+        )
+    elif os.path.exists(file_path):
+        return FileResponse(file_path)
+    
+    return {"error": "File not found"}
 load_dotenv()
 # CORS Configuration
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")

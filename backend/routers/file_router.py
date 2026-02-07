@@ -36,10 +36,6 @@ async def upload_file(
     # We will read chunks, compute hash, and write appropriately.
     # Ideally we'd wash the file to a temp location first, but for simplicity:
     
-    # Generate unique-ish filename to prevent collisions if hash logic fails or is skipped
-    # actually let's use hash as filename? No, we need original extension.
-    # Let's save as {hash}_{original_name}
-    
     # We need to calculate hash WHILE reading/saving to avoid double reading
     sha256_hash = hashlib.sha256()
     
@@ -55,68 +51,108 @@ async def upload_file(
             size += len(content)
             
     file_hash = sha256_hash.hexdigest()
+    final_content_type = file.content_type
+    final_extension = os.path.splitext(file.filename)[1].lower()
     
-    # Image Optimization logic using Pillow
-    # Requires: pip install Pillow
+    # Compression Logic
     try:
-        from PIL import Image
-        import io
+        import gzip
+        import shutil
         
+        # 1. Image Compression (Pillow)
         if file.content_type.startswith("image/"):
-            # Re-open temp file to compress
-            with open(temp_path, 'rb') as f:
-                img_data = f.read()
+            try:
+                from PIL import Image
+                import io
                 
-            with Image.open(io.BytesIO(img_data)) as img:
-                # Convert RGBA to RGB if needed
-                if img.mode in ('RGBA', 'P'):
-                    img = img.convert('RGB')
-                
-                # Resize if too large (max 1920px width)
-                max_width = 1920
-                if img.width > max_width:
-                    ratio = max_width / img.width
-                    new_height = int(img.height * ratio)
-                    img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
-                
-                # Save compressed to buffer
-                buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=80, optimize=True)
-                buffer.seek(0)
-                
-                # Overwrite content for final save
-                compressed_data = buffer.getvalue()
-                
-                # Update hash for compressed file (optional, but good for consistency)
-                # Actually, let's keep original hash for dedup of *uploads*, 
-                # but saving compressed version is fine.
-                
-                # Write compressed data to temp (overwrite)
-                with open(temp_path, 'wb') as f:
-                    f.write(compressed_data)
+                # Re-open temp file
+                with open(temp_path, 'rb') as f:
+                    img_data = f.read()
                     
-                size = len(compressed_data)
-                # We update filename to .jpg if we converted
-                if not file.filename.lower().endswith(('.jpg', '.jpeg')):
-                     file.filename = os.path.splitext(file.filename)[0] + ".jpg"
-                     
-    except ImportError:
-        print("Pillow not installed, skipping image compression")
-    except Exception as e:
-        print(f"Image compression failed: {e}")
+                with Image.open(io.BytesIO(img_data)) as img:
+                    # Convert to RGB
+                    if img.mode in ('RGBA', 'P'):
+                        img = img.convert('RGB')
+                    
+                    # Resize (Max 1280px)
+                    max_width = 1280
+                    if img.width > max_width:
+                        ratio = max_width / img.width
+                        new_height = int(img.height * ratio)
+                        img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                    
+                    # Save compressed to buffer (JPEG, Quality 30)
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="JPEG", quality=30, optimize=True)
+                    buffer.seek(0)
+                    
+                    compressed_data = buffer.getvalue()
+                    
+                    # Overwrite temp file
+                    with open(temp_path, 'wb') as f:
+                        f.write(compressed_data)
+                        
+                    size = len(compressed_data)
+                    final_content_type = "image/jpeg"
+                    final_extension = ".jpg"
+                    
+                    # Update filename to .jpg if needed
+                    if not file.filename.lower().endswith(('.jpg', '.jpeg')):
+                         file.filename = os.path.splitext(file.filename)[0] + ".jpg"
 
-    final_filename = f"{file_hash}_{file.filename}"
+            except ImportError:
+                print("Pillow not installed, skipping image compression")
+            except Exception as e:
+                print(f"Image compression failed: {e}")
+
+        # 2. GZIP Compression for non-images
+        else:
+            # Attempt GZIP
+            gzip_path = temp_path + ".gz"
+            with open(temp_path, 'rb') as f_in:
+                with gzip.open(gzip_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            
+            gzip_size = os.path.getsize(gzip_path)
+            
+            # Use GZIP if it saves space (arbitrary threshold: 95% of original or better)
+            if gzip_size < size * 0.95:
+                # Replace temp file with gzipped version
+                os.remove(temp_path)
+                os.rename(gzip_path, temp_path)
+                size = gzip_size
+                final_extension += ".gz" # Append .gz
+                # We do NOT change content_type, server will handle encoding
+            else:
+                # Discard gzip if not efficient
+                os.remove(gzip_path)
+
+    except Exception as e:
+        print(f"Compression logic failed: {e}")
+
+    final_filename = f"{file_hash}_{file.filename}{final_extension if final_extension.endswith('.gz') and not file.filename.endswith('.gz') else ''}"
+    
+    # Fix double extension issue if present or just keep it simple
+    # If we gzipped, final_filename should end in .gz
+    # If we turned to jpg, it should end in .jpg
+    # Let's rebuild filename safely
+    base_name = os.path.splitext(file.filename)[0]
+    if final_content_type == "image/jpeg":
+        final_filename = f"{file_hash}_{base_name}.jpg"
+    elif final_extension.endswith(".gz"):
+        final_filename = f"{file_hash}_{file.filename}.gz"
+    else:
+        final_filename = f"{file_hash}_{file.filename}"
+
     final_path = os.path.join(UPLOAD_DIR, final_filename)
     
     # Rename/Move
     if os.path.exists(final_path):
-        # File exists, delete temp and use existing
         os.remove(temp_path)
     else:
         os.rename(temp_path, final_path)
         
     # Create Message Record
-    # We create a 'file' type message automatically
     new_message = Message(
         sender_id=current_user.id,
         room_id=room_id,
@@ -130,10 +166,10 @@ async def upload_file(
     # Create Attachment Record
     attachment = FileAttachment(
         message_id=new_message.id,
-        filename=final_filename, # Store the actual on-disk filename (hashed) so links work
+        filename=final_filename, 
         file_path=final_path,
         file_size=size,
-        content_type=file.content_type
+        content_type=final_content_type 
     )
     db.add(attachment)
     db.commit()
