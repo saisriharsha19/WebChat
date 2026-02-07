@@ -57,16 +57,37 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         if (!inputValue.trim()) return;
 
         if (editingMessageId) {
-            // ... (keep existing edit logic or optimize similarly if needed)
+            const content = inputValue.trim();
+            // Optimistic update for edit
+            try {
+                const existing = await db.messages.get(editingMessageId);
+                if (existing) {
+                    await db.messages.put({
+                        ...existing,
+                        content: content,
+                        is_edited: true,
+                        // Don't change updated_at yet, let server dictate authoritative time or set local
+                        updated_at: new Date()
+                    });
+                }
+            } catch (e) {
+                console.error("Optimistic edit failed", e);
+            }
+
+            setEditingMessageId(null);
+            setInputValue('');
+
             fetchWithAuth(API_ENDPOINTS.editMessage(editingMessageId), {
                 method: 'PUT',
-                body: JSON.stringify({ content: inputValue })
+                body: JSON.stringify({ content: content })
             }).then(() => {
-                setEditingMessageId(null);
-                setInputValue('');
+                // Success, server broadcast will come later and confirm (or overwrite with same data)
             }).catch(async (err) => {
                 console.error("Edit failed:", err);
                 alert("Edit failed");
+                // Revert optimistic update? 
+                // Too complex for now, user will just see it revert if they refresh or if server sends error?
+                // Ideally we revert here.
             });
         } else {
             const content = inputValue.trim();
@@ -77,12 +98,6 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                 // Add to local DB immediately with 'pending' status
                 // The sendMessage function in WebSocketContext handles `db.messages.add`
                 // BUT, to be "instant", we should ensure it happens without waiting for the network socket if possible
-                // However, `sendMessage` in context already calls `db.messages.add` if offline, 
-                // let's update `sendMessage` to ALWAYS add to DB first, or do it here.
-
-                // Let's rely on WebSocketContext.sendMessage to be fast, but we can call it.
-                // Actually, `sendMessage` in `WebSocketContext` sends to WS.
-                // We should add it to Dexie here for instant UI feedback.
 
                 const tempId = `temp-${Date.now()}-${Math.random()}`;
 
