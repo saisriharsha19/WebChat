@@ -180,6 +180,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         endCall();
                         setCallState(prev => ({ ...prev, status: 'rejected' }));
                         setTimeout(() => setCallState({ status: 'idle' }), 2000);
+                    } else if (data.type === 'call_ended') {
+                        // Remote user hung up
+                        endCall();
+                        // Optionally show "Call Ended" toast
                     } else if (data.type === 'call_handled') {
                         // Call answered or rejected on another device
                         endCall();
@@ -391,6 +395,17 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     const endCall = () => {
+        if (callState.userId && wsRef.current?.readyState === WebSocket.OPEN) {
+            // Only send 'call_end' if we are actually in a call (connected/calling/incoming)
+            // and not just idling.
+            if (['connected', 'calling', 'incoming', 'busy'].includes(callState.status)) {
+                wsRef.current.send(JSON.stringify({
+                    type: 'call_end',
+                    target_user_id: callState.userId
+                }));
+            }
+        }
+
         setCallState({ status: 'idle' });
         setRemoteStream(null);
         if (peerConnection.current) {

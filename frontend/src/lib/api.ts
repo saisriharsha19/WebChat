@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
-export const API_URL = 'https://webchat-8bvf.onrender.com';
-const WS_BASE_URL = 'wss://webchat-8bvf.onrender.com';
+export const API_URL = 'http://localhost:8000';
+const WS_BASE_URL = 'ws://localhost:8000';
 
 export const API_ENDPOINTS = {
     // Auth

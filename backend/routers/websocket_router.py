@@ -315,6 +315,19 @@ async def websocket_chat(websocket: WebSocket, token: str):
                     "reason": "rejected_elsewhere"
                 }, websocket)
 
+            elif message_type == "call_end":
+                target_id = data.get("target_user_id")
+                # Notify the other party
+                await manager.send_personal_message({
+                    "type": "call_ended",
+                    "sender_id": user.id
+                }, target_id)
+                # Ensure other sessions of sender also reset
+                await manager.send_to_user_except(user.id, {
+                    "type": "call_handled",
+                    "reason": "ended_elsewhere"
+                }, websocket)
+
             elif message_type == "ice_candidate":
                 target_id = data.get("target_user_id")
                 await manager.send_personal_message({
