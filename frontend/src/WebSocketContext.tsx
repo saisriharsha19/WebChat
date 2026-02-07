@@ -11,7 +11,7 @@ type WSMessage = {
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 interface WebSocketContextType {
-    sendMessage: (roomId: number, content: string) => void;
+    sendMessage: (roomId: number, content: string, correlationId?: string) => void;
     joinRoom: (roomId: number) => void;
     leaveRoom: (roomId: number) => void;
     markAsRead: (messageId: number, roomId: number) => void;
@@ -111,6 +111,20 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         });
                     } else if (data.type === 'new_message') {
                         const msg = data.message;
+                        const correlationId = data.correlation_id;
+
+                        // Deduplication: If we have a pending message with this correlationId (temp_id), remove it first
+                        if (correlationId) {
+                            try {
+                                const pending = await db.messages.where('temp_id').equals(correlationId).first();
+                                if (pending) {
+                                    await db.messages.delete(pending.id!); // local id might be auto-incremented or same as temp info
+                                }
+                            } catch (e) {
+                                console.warn("Deduplication check failed", e);
+                            }
+                        }
+
                         await db.messages.put({
                             id: msg.id,
                             content: msg.content,
@@ -125,8 +139,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         });
                         setLastUpdate(Date.now());
                     } else if (data.type === 'message_updated') {
+                        // ... (existing code)
                         const msg = data.message;
-                        // Update existing message in DB
                         const existing = await db.messages.get(msg.id);
                         if (existing) {
                             await db.messages.put({
@@ -138,8 +152,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             setLastUpdate(Date.now());
                         }
                     } else if (data.type === 'call_offer') {
+                        // ... (existing code)
                         if (callState.status !== 'idle') {
-                            // Automatically reject if busy
                             ws.send(JSON.stringify({
                                 type: 'call_reject',
                                 target_user_id: data.sender_id,
@@ -153,9 +167,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             userId: data.sender_id,
                             sdp: data.sdp
                         });
-                        // Clear buffer on new offer
                         iceCandidatesBuffer.current = [];
-                    } else if (data.type === 'call_answer') {
+                    }
+                    // ... (rest of message handling)
+                    else if (data.type === 'call_answer') {
                         if (peerConnection.current) {
                             await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
                             setCallState(prev => ({ ...prev, status: 'connected' }));
@@ -192,6 +207,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             };
 
             ws.onclose = () => {
+                // ... (existing OnClose)
                 console.log('WebSocket disconnected');
                 setConnectionStatus('disconnected');
                 wsRef.current = null;
@@ -225,29 +241,33 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         };
     }, [token, user]);
 
-    const sendMessage = (roomId: number, content: string) => {
-        const correlationId = `msg-${Date.now()}-${Math.random()}`;
+    const sendMessage = (roomId: number, content: string, correlationId?: string) => {
+        const cid = correlationId || `msg-${Date.now()}-${Math.random()}`;
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'message',
                 room_id: roomId,
                 content,
-                correlation_id: correlationId
+                correlation_id: cid
             }));
         } else {
             // Offline support logic
-            db.messages.add({
-                content,
-                sender_id: user!.id,
-                room_id: roomId,
-                message_type: 'text',
-                created_at: new Date(),
-                updated_at: new Date(),
-                is_deleted: false,
-                status: 'pending',
-                temp_id: correlationId,
-                attachments: []
-            });
+            // Check if we already added it (optimistic UI might have done it)
+            // If correlationId is passed, likely ChatRoom already added it to DB.
+            if (!correlationId) {
+                db.messages.add({
+                    content,
+                    sender_id: user!.id,
+                    room_id: roomId,
+                    message_type: 'text',
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                    is_deleted: false,
+                    status: 'pending',
+                    temp_id: cid,
+                    attachments: []
+                });
+            }
         }
     };
 

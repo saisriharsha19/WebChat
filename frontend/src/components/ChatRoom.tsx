@@ -97,17 +97,24 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                     status: 'pending',
                     temp_id: tempId,
                     attachments: [],
-                    // Mock sender for display
+                    // Mock sender for display using actual user auth data
                     sender: {
                         id: user!.id,
                         username: user!.username,
                         display_name: user!.display_name,
-                        avatar_url: user!.avatar_url
+                        avatar_url: user!.avatar_url,
+                        email: user!.email || '',
+                        theme_preference: user!.theme_preference || 'light',
+                        is_active: true,
+                        created_at: new Date(),
+                        last_seen: new Date()
                     }
                 });
 
                 // Now send via network
-                sendMessage(roomId, content);
+                // Generate a correlation ID to deduplicate/link the message
+                const correlationId = tempId;
+                sendMessage(roomId, content, correlationId);
 
             } catch (err) {
                 console.error("Failed to optimistically add message:", err);

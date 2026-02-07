@@ -253,8 +253,9 @@ async def websocket_chat(websocket: WebSocket, token: str):
                                 "username": user.username,
                                 "display_name": user.display_name,
                                 "avatar_url": user.avatar_url
-                            }
-                        }
+                            },
+                        },
+                        "correlation_id": data.get("correlation_id")
                     }
                     
                     # Send ACK if correlation_id is present
