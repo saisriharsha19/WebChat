@@ -34,8 +34,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     const [onlineUsers, setOnlineUsers] = useState<Map<number, string>>(new Map());
     const [incomingCall, setIncomingCall] = useState<{ callerId: number, sdp: any } | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [callAccepted, setCallAccepted] = useState(false);
 
     // WebRTC refs
     const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -235,7 +233,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
 
         setIncomingCall(null);
-        setCallAccepted(true);
+        setIncomingCall(null);
         return { pc, stream };
     };
 

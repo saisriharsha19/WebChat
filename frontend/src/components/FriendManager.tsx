@@ -8,7 +8,7 @@ interface FriendManagerProps {
     selectedUserIds?: number[];
 }
 
-export function FriendManager({ onSelectUser, selectedUserIds = [] }: FriendManagerProps) {
+export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds = [] }: FriendManagerProps) {
     const { onlineUsers, startCall } = useWebSocket();
     const [activeTab, setActiveTab] = useState<'friends' | 'requests' | 'search'>('friends');
 

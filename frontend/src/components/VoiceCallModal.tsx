@@ -5,8 +5,7 @@ import { API_ENDPOINTS, fetchWithAuth } from '../lib/api';
 export function VoiceCallModal() {
     const { incomingCall, answerIncomingCall, rejectIncomingCall } = useWebSocket();
     const [activeCall, setActiveCall] = useState<boolean>(false);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    const [_localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [callDuration, setCallDuration] = useState(0);
     const timerRef = useRef<number | null>(null);
