@@ -105,32 +105,42 @@ async def upload_file(
             except Exception as e:
                 print(f"Image compression failed: {e}")
 
-        # 2. GZIP Compression for non-images
+        # 2. Brotli Compression for non-images
         else:
-            # Attempt GZIP
-            gzip_path = temp_path + ".gz"
-            with open(temp_path, 'rb') as f_in:
-                with gzip.open(gzip_path, 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-            
-            gzip_size = os.path.getsize(gzip_path)
-            
-            # Use GZIP if it saves space (arbitrary threshold: 95% of original or better)
-            if gzip_size < size * 0.95:
-                # Replace temp file with gzipped version
-                os.remove(temp_path)
-                os.rename(gzip_path, temp_path)
-                size = gzip_size
-                final_extension += ".gz" # Append .gz
-                # We do NOT change content_type, server will handle encoding
-            else:
-                # Discard gzip if not efficient
-                os.remove(gzip_path)
+            try:
+                import brotli
+                
+                # Read original
+                with open(temp_path, 'rb') as f:
+                    original_data = f.read()
+                
+                # Compress with Brotli (Quality 11 is max, but slow. 4 is default balance. Let's use 6 for balance of speed/ratio)
+                compressed_data = brotli.compress(original_data, quality=6)
+                
+                brotli_size = len(compressed_data)
+                
+                # Keep if smaller (even by 1 byte)
+                if brotli_size < size:
+                    # Write .br file
+                    brotli_path = temp_path + ".br"
+                    with open(brotli_path, 'wb') as f_out:
+                        f_out.write(compressed_data)
+                    
+                    # Replace temp file
+                    os.remove(temp_path)
+                    os.rename(brotli_path, temp_path)
+                    size = brotli_size
+                    final_extension += ".br"
+                
+            except ImportError:
+                print("Brotli not installed, skipping compression")
+            except Exception as e:
+                print(f"Brotli compression failed: {e}")
 
     except Exception as e:
         print(f"Compression logic failed: {e}")
 
-    final_filename = f"{file_hash}_{file.filename}{final_extension if final_extension.endswith('.gz') and not file.filename.endswith('.gz') else ''}"
+    final_filename = f"{file_hash}_{file.filename}{final_extension if final_extension.endswith('.br') and not file.filename.endswith('.br') else ''}"
     
     # Fix double extension issue if present or just keep it simple
     # If we gzipped, final_filename should end in .gz
@@ -139,8 +149,8 @@ async def upload_file(
     base_name = os.path.splitext(file.filename)[0]
     if final_content_type == "image/jpeg":
         final_filename = f"{file_hash}_{base_name}.jpg"
-    elif final_extension.endswith(".gz"):
-        final_filename = f"{file_hash}_{file.filename}.gz"
+    elif final_extension.endswith(".br"):
+        final_filename = f"{file_hash}_{file.filename}.br"
     else:
         final_filename = f"{file_hash}_{file.filename}"
 

@@ -55,21 +55,33 @@ app = FastAPI(title="WebChat API", lifespan=lifespan)
 async def serve_media(filename: str):
     file_path = os.path.join(UPLOAD_DIR, filename)
     
-    # Check if a GZIP version exists
-    gzip_path = file_path + ".gz"
-    
-    if os.path.exists(gzip_path):
-        # Serve the compressed file with encoding header
+    # CASE 1: Client requested a .br file directly
+    if filename.endswith(".br") and os.path.exists(file_path):
+        import mimetypes
+        original_filename = filename[:-3]
+        media_type, _ = mimetypes.guess_type(original_filename)
+        
+        return FileResponse(
+            file_path,
+            media_type=media_type or "application/octet-stream",
+            headers={"Content-Encoding": "br", "Content-Disposition": "inline"}
+        )
+
+    # CASE 2: Client requested original filename but we stored it as .br
+    brotli_path = file_path + ".br"
+    if os.path.exists(brotli_path):
         import mimetypes
         media_type, _ = mimetypes.guess_type(filename)
         
         return FileResponse(
-            gzip_path, 
+            brotli_path, 
             media_type=media_type or "application/octet-stream",
-            headers={"Content-Encoding": "gzip"}
+            headers={"Content-Encoding": "br", "Content-Disposition": "inline"}
         )
-    elif os.path.exists(file_path):
-        return FileResponse(file_path)
+    
+    # CASE 3: Standard file
+    if os.path.exists(file_path):
+        return FileResponse(file_path, headers={"Content-Disposition": "inline"})
     
     return {"error": "File not found"}
 load_dotenv()
