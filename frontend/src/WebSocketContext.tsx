@@ -8,16 +8,19 @@ type WSMessage = {
     [key: string]: any;
 };
 
+type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+
 interface WebSocketContextType {
     sendMessage: (roomId: number, content: string) => void;
     joinRoom: (roomId: number) => void;
     leaveRoom: (roomId: number) => void;
     markAsRead: (messageId: number, roomId: number) => void;
     isConnected: boolean;
+    connectionStatus: ConnectionStatus;
     lastUpdate: number;
     onlineUsers: Map<number, string>;
     callState: {
-        status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
+        status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' | 'rejected' | 'busy';
         userId?: number;
         sdp?: any;
     };
@@ -30,19 +33,30 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
+const ICE_SERVERS = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+    ]
+};
+
 export function WebSocketProvider({ children }: { children: ReactNode }) {
     const { token, user } = useAuth();
     const wsRef = useRef<WebSocket | null>(null);
-    const [isConnected, setIsConnected] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
     const [lastUpdate, setLastUpdate] = useState(0); // Forcing re-renders
     const reconnectTimeoutRef = useRef<number | null>(null);
     const reconnectAttemptsRef = useRef(0);
+    const pingIntervalRef = useRef<number | null>(null);
 
     const [onlineUsers, setOnlineUsers] = useState<Map<number, string>>(new Map());
 
     // Unified Call State
     const [callState, setCallState] = useState<{
-        status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
+        status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' | 'rejected' | 'busy';
         userId?: number;
         sdp?: any;
     }>({ status: 'idle' });
@@ -56,21 +70,34 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const connect = () => {
         if (!token) return;
 
+        if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
         try {
+            setConnectionStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
             const ws = new WebSocket(API_ENDPOINTS.wsChat(token));
             wsRef.current = ws;
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
-                setIsConnected(true);
+                setConnectionStatus('connected');
                 reconnectAttemptsRef.current = 0;
+
+                // Start Heartbeat
+                if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+                pingIntervalRef.current = window.setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping' }));
+                    }
+                }, 30000); // 30s ping
             };
 
             ws.onmessage = async (event) => {
                 try {
                     const data: WSMessage = JSON.parse(event.data);
 
-                    if (data.type === 'connected') {
+                    if (data.type === 'pong') {
+                        // Alive
+                    } else if (data.type === 'connected') {
                         console.log('Connected as', data.username);
                     } else if (data.type === 'user_status') {
                         setOnlineUsers(prev => {
@@ -111,6 +138,16 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             setLastUpdate(Date.now());
                         }
                     } else if (data.type === 'call_offer') {
+                        if (callState.status !== 'idle') {
+                            // Automatically reject if busy
+                            ws.send(JSON.stringify({
+                                type: 'call_reject',
+                                target_user_id: data.sender_id,
+                                reason: 'busy'
+                            }));
+                            return;
+                        }
+
                         setCallState({
                             status: 'incoming',
                             userId: data.sender_id,
@@ -123,15 +160,27 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
                             setCallState(prev => ({ ...prev, status: 'connected' }));
                         }
+                    } else if (data.type === 'call_rejected') {
+                        alert('Call rejected');
+                        endCall();
+                        setCallState(prev => ({ ...prev, status: 'rejected' }));
+                        setTimeout(() => setCallState({ status: 'idle' }), 2000);
+                    } else if (data.type === 'call_handled') {
+                        // Call answered or rejected on another device
+                        endCall();
+                        setCallState({ status: 'idle' });
+                        // Optionally show a toast here
+                        console.log('Call handled on another device:', data.reason);
                     } else if (data.type === 'ice_candidate') {
                         const candidate = new RTCIceCandidate(data.candidate);
                         if (peerConnection.current && peerConnection.current.remoteDescription) {
                             await peerConnection.current.addIceCandidate(candidate);
                         } else {
                             // Buffer candidate
-                            console.log("Buffering ICE candidate");
                             iceCandidatesBuffer.current.push(candidate);
                         }
+                    } else if (data.type === 'message_ack') {
+                        // Could update local message status to 'delivered'
                     }
                 } catch (err) {
                     console.error('Error processing WebSocket message:', err);
@@ -144,9 +193,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
             ws.onclose = () => {
                 console.log('WebSocket disconnected');
-                setIsConnected(false);
+                setConnectionStatus('disconnected');
                 wsRef.current = null;
                 setOnlineUsers(new Map());
+                if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
 
                 if (token) {
                     const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttemptsRef.current));
@@ -159,6 +209,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             };
         } catch (err) {
             console.error('Failed to create WebSocket:', err);
+            setConnectionStatus('disconnected');
         }
     };
 
@@ -168,20 +219,23 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
         return () => {
             if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+            if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
             if (wsRef.current) wsRef.current.close();
-            // Cleanup generic if needed, but handled by endCall usually
+            endCall();
         };
     }, [token, user]);
 
     const sendMessage = (roomId: number, content: string) => {
+        const correlationId = `msg-${Date.now()}-${Math.random()}`;
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'message',
                 room_id: roomId,
                 content,
+                correlation_id: correlationId
             }));
         } else {
-            const tempId = `temp-${Date.now()}-${Math.random()}`;
+            // Offline support logic
             db.messages.add({
                 content,
                 sender_id: user!.id,
@@ -191,7 +245,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 updated_at: new Date(),
                 is_deleted: false,
                 status: 'pending',
-                temp_id: tempId,
+                temp_id: correlationId,
                 attachments: []
             });
         }
@@ -202,7 +256,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             const candidate = iceCandidatesBuffer.current.shift();
             if (candidate) {
                 try {
-                    console.log("Adding buffered ICE candidate");
                     await pc.addIceCandidate(candidate);
                 } catch (e) {
                     console.error("Error adding buffered candidate", e);
@@ -216,9 +269,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         setRemoteStream(null);
         iceCandidatesBuffer.current = [];
 
-        const pc = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        const pc = new RTCPeerConnection(ICE_SERVERS);
         peerConnection.current = pc;
 
         pc.onicecandidate = (event) => {
@@ -231,8 +282,15 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             }
         };
 
+        pc.oniceconnectionstatechange = () => {
+            console.log("ICE Connection State:", pc.iceConnectionState);
+            if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                // Handle reconnection or drop
+                alert("Call connection unstable or lost");
+            }
+        };
+
         pc.ontrack = (event) => {
-            console.log("Track received:", event.streams[0]);
             setRemoteStream(event.streams[0]);
         };
 
@@ -257,9 +315,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const answerIncomingCall = async () => {
         if (callState.status !== 'incoming' || !callState.userId) return;
 
-        const pc = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        const pc = new RTCPeerConnection(ICE_SERVERS);
         peerConnection.current = pc;
 
         pc.onicecandidate = (event) => {
@@ -272,14 +328,16 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             }
         };
 
+        pc.oniceconnectionstatechange = () => {
+            console.log("ICE Connection State:", pc.iceConnectionState);
+        };
+
         pc.ontrack = (event) => {
-            console.log("Track received:", event.streams[0]);
             setRemoteStream(event.streams[0]);
         };
 
         if (callState.sdp) {
             await pc.setRemoteDescription(new RTCSessionDescription(callState.sdp));
-            // After setting remote description, we can add candidates
             await processBufferedCandidates(pc);
         }
 
@@ -303,8 +361,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     const rejectIncomingCall = () => {
+        if (callState.userId && wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'call_reject',
+                target_user_id: callState.userId
+            }));
+        }
         endCall();
-        // Optional: send reject message
     };
 
     const endCall = () => {
@@ -351,7 +414,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     return (
         <WebSocketContext.Provider
             value={{
-                sendMessage, joinRoom, leaveRoom, markAsRead, isConnected, lastUpdate,
+                sendMessage, joinRoom, leaveRoom, markAsRead, isConnected: connectionStatus === 'connected', connectionStatus, lastUpdate,
                 onlineUsers, callState, remoteStream, startCall, answerIncomingCall, rejectIncomingCall, endCall
             }}
         >

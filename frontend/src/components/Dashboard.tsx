@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import { useWebSocket } from '../WebSocketContext';
 import ChatRoom from './ChatRoom';
 import { RoomList } from './RoomList';
 import { CreateGroupModal } from './CreateGroupModal';
@@ -11,6 +12,7 @@ import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 
 export default function Dashboard() {
     const { user, logout } = useAuth();
+    const { connectionStatus } = useWebSocket();
     const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [showDirectory, setShowDirectory] = useState(false);
@@ -77,6 +79,12 @@ export default function Dashboard() {
             sidebarOpen={mobileSidebarOpen}
             onSidebarClose={() => setMobileSidebarOpen(false)}
         >
+            {connectionStatus !== 'connected' && (
+                <div className={`w-full px-4 py-1 text-xs text-center font-medium ${connectionStatus === 'disconnected' ? 'bg-red-500/10 text-red-500' : 'bg-yellow-500/10 text-yellow-500'
+                    }`}>
+                    {connectionStatus === 'disconnected' ? 'Disconnected' : 'Reconnecting...'}
+                </div>
+            )}
             <VoiceCallModal />
 
             {/* Mobile Header (Only visible on mobile when room is selected or standard view) */}

@@ -3,7 +3,7 @@ import { useWebSocket } from '../WebSocketContext';
 import { API_ENDPOINTS, fetchWithAuth } from '../lib/api';
 
 export function VoiceCallModal() {
-    const { callState, answerIncomingCall, rejectIncomingCall, endCall, remoteStream } = useWebSocket();
+    const { callState, answerIncomingCall, rejectIncomingCall, endCall, remoteStream, connectionStatus } = useWebSocket();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [_localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [callDuration, setCallDuration] = useState(0);
@@ -74,6 +74,12 @@ export function VoiceCallModal() {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-accent/20 blur-[80px] rounded-full pointer-events-none"></div>
 
                 <audio ref={audioRef} autoPlay hidden />
+
+                {connectionStatus === 'reconnecting' && (
+                    <div className="absolute inset-0 z-20 bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                        <div className="text-white font-medium animate-pulse">Reconnecting...</div>
+                    </div>
+                )}
 
                 <div className="relative z-10 flex flex-col items-center">
                     {callState.status === 'incoming' && (
@@ -160,6 +166,22 @@ export function VoiceCallModal() {
                                     <svg className="transform rotate-[135deg]" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                                 </button>
                             </div>
+                        </>
+                    )}
+
+                    {(callState.status === 'rejected' || callState.status === 'busy') && (
+                        <>
+                            <div className="mb-6">
+                                <div className="w-24 h-24 bg-surface-sidebar border border-border rounded-2xl flex items-center justify-center shadow-lg mx-auto">
+                                    <span className="text-4xl text-txt-secondary font-bold">
+                                        {peerName?.[0]?.toUpperCase()}
+                                    </span>
+                                </div>
+                            </div>
+                            <h3 className="text-txt-primary text-xl font-semibold mb-2">{peerName}</h3>
+                            <p className="text-red-400 font-medium mb-8">
+                                {callState.status === 'busy' ? 'User is Busy' : 'Call Rejected'}
+                            </p>
                         </>
                     )}
                 </div>

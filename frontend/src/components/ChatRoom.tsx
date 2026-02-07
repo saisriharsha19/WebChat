@@ -53,10 +53,11 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }, [messages?.length, roomId]);
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!inputValue.trim()) return;
 
         if (editingMessageId) {
+            // ... (keep existing edit logic or optimize similarly if needed)
             fetchWithAuth(API_ENDPOINTS.editMessage(editingMessageId), {
                 method: 'PUT',
                 body: JSON.stringify({ content: inputValue })
@@ -65,16 +66,52 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                 setInputValue('');
             }).catch(async (err) => {
                 console.error("Edit failed:", err);
-                let msg = 'Edit failed';
-                try {
-                    const data = await err.json();
-                    msg = data.detail || msg;
-                } catch (e) { }
-                alert(msg);
+                alert("Edit failed");
             });
         } else {
-            sendMessage(roomId, inputValue.trim());
-            setInputValue('');
+            const content = inputValue.trim();
+            setInputValue(''); // Clear input immediately for speed
+
+            // Optimistic update
+            try {
+                // Add to local DB immediately with 'pending' status
+                // The sendMessage function in WebSocketContext handles `db.messages.add`
+                // BUT, to be "instant", we should ensure it happens without waiting for the network socket if possible
+                // However, `sendMessage` in context already calls `db.messages.add` if offline, 
+                // let's update `sendMessage` to ALWAYS add to DB first, or do it here.
+
+                // Let's rely on WebSocketContext.sendMessage to be fast, but we can call it.
+                // Actually, `sendMessage` in `WebSocketContext` sends to WS.
+                // We should add it to Dexie here for instant UI feedback.
+
+                const tempId = `temp-${Date.now()}-${Math.random()}`;
+
+                await db.messages.add({
+                    content,
+                    sender_id: user!.id,
+                    room_id: roomId,
+                    message_type: 'text',
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                    is_deleted: false,
+                    status: 'pending',
+                    temp_id: tempId,
+                    attachments: [],
+                    // Mock sender for display
+                    sender: {
+                        id: user!.id,
+                        username: user!.username,
+                        display_name: user!.display_name,
+                        avatar_url: user!.avatar_url
+                    }
+                });
+
+                // Now send via network
+                sendMessage(roomId, content);
+
+            } catch (err) {
+                console.error("Failed to optimistically add message:", err);
+            }
         }
     };
 
