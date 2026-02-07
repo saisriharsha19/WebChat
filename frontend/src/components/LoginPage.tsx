@@ -33,8 +33,8 @@ export default function LoginPage() {
 
             <div className="w-full max-w-[380px] p-8 m-4 glass-panel rounded-2xl relative z-10 animate-fade-in border border-white/5 shadow-2xl backdrop-blur-xl bg-[#111113]/60">
                 <div className="mb-8 text-center">
-                    <div className="w-12 h-12 bg-[#6366f1] rounded-xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-[#6366f1]/20">
-                        <svg className="text-white" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <div className="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-lg shadow-[#6366f1]/20 overflow-hidden bg-[#18181b]">
+                        <img src="/entropy.svg" alt="Entropy Logo" className="w-full h-full object-cover" />
                     </div>
                     <h1 className="text-[24px] font-bold text-white mb-2 tracking-tight">{isLogin ? 'Welcome back' : 'Create Account'}</h1>
                     <p className="text-[14px] text-txt-secondary leading-relaxed">
