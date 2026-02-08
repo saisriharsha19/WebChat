@@ -45,16 +45,25 @@ self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+            const urlToOpen = new URL(event.notification.data.url, self.location.origin).href;
+
             // Check if there is already a window for this app open
             for (let i = 0; i < windowClients.length; i++) {
                 const client = windowClients[i];
-                if (client.url === event.notification.data.url && 'focus' in client) {
-                    return client.focus();
+                // Check if the client matches the origin (basically any window of our app)
+                if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+                    return client.focus().then((focusedClient) => {
+                        // Navigate the focused client to the notification URL
+                        if (focusedClient && 'navigate' in focusedClient) {
+                            return focusedClient.navigate(urlToOpen);
+                        }
+                        return focusedClient;
+                    });
                 }
             }
             // If no window is open, open one
             if (self.clients.openWindow) {
-                return self.clients.openWindow(event.notification.data.url);
+                return self.clients.openWindow(urlToOpen);
             }
         })
     );

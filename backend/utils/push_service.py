@@ -48,6 +48,9 @@ def send_push_notification(db: Session, user_id: int, title: str, body: str, url
                 vapid_private_key=VAPID_PRIVATE_KEY,
                 vapid_claims={
                     "sub": VAPID_MAILTO
+                },
+                headers={
+                    "urgency": "high"
                 }
             )
         except WebPushException as ex:
