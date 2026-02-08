@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../WebSocketContext';
+import { useCall } from '../CallContext';
 import { useAuth } from '../AuthContext';
 import { db } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -12,7 +13,8 @@ interface ChatRoomProps {
 }
 
 export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
-    const { sendMessage, joinRoom, isConnected, lastUpdate, startCall } = useWebSocket();
+    const { sendMessage, joinRoom, isConnected, lastUpdate } = useWebSocket();
+    const { startCall } = useCall();
     const { user } = useAuth();
     const [inputValue, setInputValue] = useState('');
     const [editingMessageId, setEditingMessageId] = useState<number | null>(null);

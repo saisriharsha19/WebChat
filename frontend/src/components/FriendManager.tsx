@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 import { UserWithStatus, FriendRequest } from '../types';
 import { useWebSocket } from '../WebSocketContext';
+import { useCall } from '../CallContext';
 
 interface FriendManagerProps {
     onSelectUser: (userId: number) => void;
@@ -9,7 +10,8 @@ interface FriendManagerProps {
 }
 
 export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds = [] }: FriendManagerProps) {
-    const { onlineUsers, startCall } = useWebSocket();
+    const { onlineUsers } = useWebSocket();
+    const { startCall } = useCall();
     const [activeTab, setActiveTab] = useState<'friends' | 'requests' | 'search'>('friends');
 
     // Data states

@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
+import { useCall } from '../CallContext';
 import { useWebSocket } from '../WebSocketContext';
 import { API_ENDPOINTS, fetchWithAuth } from '../lib/api';
 
 export function VoiceCallModal() {
-    const { callState, answerIncomingCall, rejectIncomingCall, endCall, remoteStream, connectionStatus, isMuted, toggleMute, connectionQuality } = useWebSocket();
+    const { callState, answerIncomingCall, rejectIncomingCall, endCall, remoteStream, isMuted, toggleMute, connectionQuality } = useCall();
+    const { connectionStatus } = useWebSocket();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [_localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [callDuration, setCallDuration] = useState(0);

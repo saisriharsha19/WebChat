@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from './AuthContext.tsx';
 import { WebSocketProvider } from './WebSocketContext.tsx';
+import { CallProvider } from './CallContext.tsx';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import LoginPage from './components/LoginPage.tsx';
 import Dashboard from './components/Dashboard.tsx';
@@ -34,7 +35,9 @@ function AppContent() {
     return (
         <div className="h-full w-full">
             <WebSocketProvider>
-                <Dashboard />
+                <CallProvider>
+                    <Dashboard />
+                </CallProvider>
             </WebSocketProvider>
         </div>
     );
