@@ -29,6 +29,9 @@ interface WebSocketContextType {
     answerIncomingCall: () => Promise<{ pc: RTCPeerConnection, stream: MediaStream } | undefined>;
     rejectIncomingCall: () => void;
     endCall: () => void;
+    isMuted: boolean;
+    toggleMute: () => void;
+    connectionQuality: 'good' | 'fair' | 'poor';
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -51,6 +54,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const reconnectTimeoutRef = useRef<number | null>(null);
     const reconnectAttemptsRef = useRef(0);
     const pingIntervalRef = useRef<number | null>(null);
+    const callTimeoutRef = useRef<number | null>(null);
 
     const [onlineUsers, setOnlineUsers] = useState<Map<number, string>>(new Map());
 
@@ -113,29 +117,29 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         const msg = data.message;
                         const correlationId = data.correlation_id;
 
-                        // Deduplication: If we have a pending message with this correlationId (temp_id), remove it first
-                        if (correlationId) {
-                            try {
+                        // Use transaction to prevent UI flicker/race
+                        await db.transaction('rw', db.messages, async () => {
+                            // Deduplication: If we have a pending message with this correlationId (temp_id), remove it first
+                            if (correlationId) {
                                 const pending = await db.messages.where('temp_id').equals(correlationId).first();
                                 if (pending) {
-                                    await db.messages.delete(pending.id!); // local id might be auto-incremented or same as temp info
+                                    await db.messages.delete(pending.id!);
                                 }
-                            } catch (e) {
-                                console.warn("Deduplication check failed", e);
                             }
-                        }
-
-                        await db.messages.put({
-                            id: msg.id,
-                            content: msg.content,
-                            sender_id: msg.sender_id,
-                            room_id: parseInt(msg.room_id),
-                            message_type: msg.message_type || 'text',
-                            created_at: new Date(msg.created_at),
-                            updated_at: new Date(msg.created_at),
-                            is_deleted: false,
-                            status: 'synced',
-                            attachments: msg.attachments || []
+                            await db.messages.put({
+                                id: msg.id,
+                                content: msg.content,
+                                sender_id: msg.sender_id,
+                                room_id: parseInt(msg.room_id),
+                                message_type: msg.message_type || 'text',
+                                // Use server time, but ensure it doesn't break sort too badly? 
+                                // Trusted source is server.
+                                created_at: new Date(msg.created_at),
+                                updated_at: new Date(msg.created_at),
+                                is_deleted: false,
+                                status: 'synced',
+                                attachments: msg.attachments || []
+                            });
                         });
                         setLastUpdate(Date.now());
                     } else if (data.type === 'message_updated') {
@@ -171,11 +175,19 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     }
                     // ... (rest of message handling)
                     else if (data.type === 'call_answer') {
+                        if (callTimeoutRef.current) {
+                            clearTimeout(callTimeoutRef.current);
+                            callTimeoutRef.current = null;
+                        }
+
                         if (peerConnection.current) {
                             await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
                             setCallState(prev => ({ ...prev, status: 'connected' }));
+                            // FIXED: Process candidates that arrived before answer
+                            await processBufferedCandidates(peerConnection.current);
                         }
                     } else if (data.type === 'call_rejected') {
+                        if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
                         alert('Call rejected');
                         endCall();
                         setCallState(prev => ({ ...prev, status: 'rejected' }));
@@ -325,12 +337,24 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
+        monitorConnection(pc);
+
+
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'call_offer',
                 target_user_id: targetUserId,
                 sdp: offer
             }));
+
+            // Set Call Timeout (30s)
+            if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+            callTimeoutRef.current = window.setTimeout(() => {
+                console.log("Call timed out");
+                endCall();
+                setCallState(prev => ({ ...prev, status: 'idle' })); // Or 'busy'/'unanswered'
+                alert("No answer");
+            }, 30000);
         }
 
         return { pc, stream };
@@ -365,12 +389,25 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             await processBufferedCandidates(pc);
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        // Critical for slow networks: Apply constraints for low bandwidth usage
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                // sampleRate: 16000, // Optional: Force lower sample rate if needed
+                // channelCount: 1
+            },
+            video: false
+        });
         localStreamRef.current = stream;
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+
+        monitorConnection(pc);
+
 
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
@@ -394,7 +431,30 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         endCall();
     };
 
+    const [isMuted, setIsMuted] = useState(false);
+    const [connectionQuality, setConnectionQuality] = useState<'good' | 'fair' | 'poor'>('good');
+    const monitoringIntervalRef = useRef<number | null>(null);
+
+    const toggleMute = () => {
+        if (localStreamRef.current) {
+            localStreamRef.current.getAudioTracks().forEach(track => {
+                track.enabled = !track.enabled;
+            });
+            setIsMuted(prev => !prev);
+        }
+    };
+
     const endCall = () => {
+        if (callTimeoutRef.current) {
+            clearTimeout(callTimeoutRef.current);
+            callTimeoutRef.current = null;
+        }
+
+        if (monitoringIntervalRef.current) {
+            clearInterval(monitoringIntervalRef.current);
+            monitoringIntervalRef.current = null;
+        }
+
         if (callState.userId && wsRef.current?.readyState === WebSocket.OPEN) {
             // Only send 'call_end' if we are actually in a call (connected/calling/incoming)
             // and not just idling.
@@ -408,6 +468,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
         setCallState({ status: 'idle' });
         setRemoteStream(null);
+        setIsMuted(false);
+        setConnectionQuality('good');
+
         if (peerConnection.current) {
             peerConnection.current.close();
             peerConnection.current = null;
@@ -417,6 +480,83 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             localStreamRef.current = null;
         }
     };
+
+    // --- Adaptive Bitrate & Monitoring Logic ---
+
+    const adjustBitrate = async (pc: RTCPeerConnection, bitrateIds: number) => {
+        const senders = pc.getSenders();
+        const sender = senders.find(s => s.track?.kind === 'audio');
+        if (!sender) return;
+
+        const parameters = sender.getParameters();
+        if (!parameters.encodings) parameters.encodings = [{}];
+
+        // If empty encodings, create one
+        if (parameters.encodings.length === 0) {
+            parameters.encodings.push({});
+        }
+
+        parameters.encodings[0].maxBitrate = bitrateIds;
+
+        try {
+            await sender.setParameters(parameters);
+            console.log(`Adjusted bitrate to ${bitrateIds} bps`);
+        } catch (e) {
+            console.error("Failed to set bitrate parameters", e);
+        }
+    };
+
+    const monitorConnection = (pc: RTCPeerConnection) => {
+        if (monitoringIntervalRef.current) clearInterval(monitoringIntervalRef.current);
+
+        let consecutiveGoodStats = 0;
+
+        monitoringIntervalRef.current = window.setInterval(async () => {
+            if (pc.connectionState !== 'connected') return;
+
+            try {
+                const stats = await pc.getStats();
+                let packetsLost = 0;
+                let roundTripTime = 0;
+
+                stats.forEach(report => {
+                    if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                        roundTripTime = report.currentRoundTripTime * 1000; // ms
+                    }
+                    if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+                        packetsLost = report.packetsLost;
+                    }
+                });
+
+                // Thresholds for quality
+                // RTT > 400ms or Packet Loss spike -> LOW quality
+                if (roundTripTime > 400 || packetsLost > 50) { // Added packet loss check (rudimentary)
+                    setConnectionQuality('poor');
+                    adjustBitrate(pc, 16000); // 16 kbps
+                    consecutiveGoodStats = 0;
+                } else if (roundTripTime > 200 || packetsLost > 10) {
+                    setConnectionQuality('fair');
+                    adjustBitrate(pc, 32000); // 32 kbps
+                    consecutiveGoodStats = 0;
+                } else {
+                    // Good connection
+                    consecutiveGoodStats++;
+                    if (consecutiveGoodStats > 5) {
+                        setConnectionQuality('good');
+                        adjustBitrate(pc, 64000); // 64 kbps (Opus default)
+                        // Cap good stats to prevent overflow, though unlikely
+                        consecutiveGoodStats = 6;
+                    }
+                }
+
+                // console.log(`Stats: RTT=${roundTripTime}ms, Loss=${packetsLost}, Quality=${connectionQuality}`);
+
+            } catch (err) {
+                console.error("Error getting stats:", err);
+            }
+        }, 2000); // Check every 2 seconds
+    };
+
 
     const joinRoom = (roomId: number) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -450,7 +590,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         <WebSocketContext.Provider
             value={{
                 sendMessage, joinRoom, leaveRoom, markAsRead, isConnected: connectionStatus === 'connected', connectionStatus, lastUpdate,
-                onlineUsers, callState, remoteStream, startCall, answerIncomingCall, rejectIncomingCall, endCall
+                onlineUsers, callState, remoteStream, startCall, answerIncomingCall, rejectIncomingCall, endCall,
+                isMuted, toggleMute, connectionQuality
             }}
         >
             {children}
