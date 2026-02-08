@@ -45,6 +45,9 @@ export const API_ENDPOINTS = {
 
     // WebSocket
     wsChat: (token: string) => `${WS_BASE_URL}/ws/chat?token=${encodeURIComponent(token)}`,
+
+    // System
+    systemInfo: `${API_URL}/api/system/info`,
 };
 
 export interface ApiError {

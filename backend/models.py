@@ -128,3 +128,9 @@ class FriendRequest(Base):
     
     sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_friend_requests")
     receiver = relationship("User", foreign_keys=[receiver_id], back_populates="received_friend_requests")
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+    
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=False)

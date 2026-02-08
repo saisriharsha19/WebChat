@@ -59,6 +59,7 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   letter-spacing: -0.011em;
   /* Slightly tighter for enterprise feel */
+  overscroll-behavior-y: none;
 }
 
 #app {

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from database import get_db
@@ -50,7 +50,7 @@ async def edit_message(
              "content": message.content,
              "room_id": message.room_id,
              "is_edited": True,
-             "updated_at": message.updated_at.isoformat()
+             "updated_at": message.updated_at.replace(tzinfo=timezone.utc).isoformat()
         }
     }
     

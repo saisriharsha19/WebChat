@@ -35,6 +35,25 @@ async def lifespan(app: FastAPI):
 
     # Create database tables if they don't exist
     Base.metadata.create_all(bind=engine)
+    
+    # Initialize System Settings (Instance ID)
+    from database import SessionLocal
+    from models import SystemSetting
+    import uuid
+    
+    db = SessionLocal()
+    try:
+        instance_id_setting = db.query(SystemSetting).filter(SystemSetting.key == "instance_id").first()
+        if not instance_id_setting:
+            new_id = str(uuid.uuid4())
+            print(f"Generated new DB Instance ID: {new_id}")
+            db.add(SystemSetting(key="instance_id", value=new_id))
+            db.commit()
+    except Exception as e:
+        print(f"Error initializing system settings: {e}")
+    finally:
+        db.close()
+        
     yield
 
 from fastapi.staticfiles import StaticFiles

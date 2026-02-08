@@ -55,6 +55,21 @@ async def sync_messages(
             
             new_messages = messages
     
+    # Fix timezones for serialization (pydantic will use these)
+    from datetime import timezone
+    
+    for msg in synced_messages:
+        if msg.created_at and msg.created_at.tzinfo is None:
+            msg.created_at = msg.created_at.replace(tzinfo=timezone.utc)
+        if msg.updated_at and msg.updated_at.tzinfo is None:
+            msg.updated_at = msg.updated_at.replace(tzinfo=timezone.utc)
+            
+    for msg in new_messages:
+        if msg.created_at and msg.created_at.tzinfo is None:
+            msg.created_at = msg.created_at.replace(tzinfo=timezone.utc)
+        if msg.updated_at and msg.updated_at.tzinfo is None:
+            msg.updated_at = msg.updated_at.replace(tzinfo=timezone.utc)
+    
     return SyncResponse(
         synced_messages=synced_messages,
         new_messages=new_messages

@@ -5,10 +5,42 @@ import { CallProvider } from './CallContext.tsx';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import LoginPage from './components/LoginPage.tsx';
 import Dashboard from './components/Dashboard.tsx';
+import { API_ENDPOINTS } from './lib/api';
+import { db } from './lib/db';
 import './style.css';
 
 function AppContent() {
     const { user, isLoading } = useAuth();
+
+    // Check for DB Reset / System Mismatch
+    useEffect(() => {
+        const checkSystem = async () => {
+            try {
+                const res = await fetch(API_ENDPOINTS.systemInfo);
+                if (res.ok) {
+                    const data = await res.json();
+                    const serverId = data.instance_id;
+                    const localId = localStorage.getItem('sys_instance_id');
+
+                    if (serverId && localId && serverId !== localId) {
+                        console.warn("System Reset Detected! Wiping local data...");
+                        await db.delete();
+                        await db.open();
+                        localStorage.clear(); // Clear all tokens/settings
+                        localStorage.setItem('sys_instance_id', serverId);
+                        window.location.reload();
+                    } else if (serverId && !localId) {
+                        // First run or valid
+                        localStorage.setItem('sys_instance_id', serverId);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to check system info", err);
+            }
+        };
+
+        checkSystem();
+    }, []);
 
     if (isLoading) {
         return (

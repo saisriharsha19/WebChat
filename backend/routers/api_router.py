@@ -114,3 +114,9 @@ async def mark_message_read(
     db.refresh(receipt)
     
     return receipt
+
+@router.get("/system/info")
+async def get_system_info(db: Session = Depends(get_db)):
+    from models import SystemSetting
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "instance_id").first()
+    return {"instance_id": setting.value if setting else None}

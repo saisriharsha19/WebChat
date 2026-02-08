@@ -3,7 +3,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from sqlalchemy.orm import Session
 from typing import Dict, List, Set
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from database import get_db, SessionLocal
 from models import Message, User, ReadReceipt, Room, RoomMember
@@ -104,7 +104,7 @@ class ConnectionManager:
             "type": "user_status",
             "user_id": user_id,
             "status": status, # "online", "offline"
-            "last_seen": datetime.utcnow().isoformat()
+            "last_seen": datetime.now(timezone.utc).isoformat()
         }
         
         for friend in friends:
@@ -238,6 +238,9 @@ async def websocket_chat(websocket: WebSocket, token: str):
                         db, content, user.id, room_id, data.get("message_type", "text")
                     )
                     
+                    # Ensure timestamps are timezone-aware (UTC)
+                    created_at_utc = new_message.created_at.replace(tzinfo=timezone.utc)
+                    
                     # Broadcast to room
                     response = {
                         "type": "new_message",
@@ -247,7 +250,7 @@ async def websocket_chat(websocket: WebSocket, token: str):
                             "sender_id": new_message.sender_id,
                             "room_id": new_message.room_id,
                             "message_type": new_message.message_type,
-                            "created_at": new_message.created_at.isoformat(),
+                            "created_at": created_at_utc.isoformat(),
                             "sender": {
                                 "id": user.id,
                                 "username": user.username,
@@ -413,3 +416,4 @@ async def websocket_chat(websocket: WebSocket, token: str):
     finally:
         # Wrap db.close() just in case, though usually fast
         await asyncio.to_thread(db.close)
+
