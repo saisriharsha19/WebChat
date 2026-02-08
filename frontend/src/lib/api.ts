@@ -67,15 +67,43 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
         headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(url, {
-        ...options,
-        headers,
-    });
+    const MAX_RETRIES = 3;
+    const BASE_DELAY = 1000;
 
-    if (!response.ok) {
-        const error: ApiError = await response.json().catch(() => ({ detail: 'Unknown error' }));
-        throw new Error(error.detail);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const response = await fetch(url, {
+                ...options,
+                headers,
+            });
+
+            // If successful or client error (4xx), return immediately (don't retry 4xx except maybe 408/429 but keeping simple)
+            // Retry on server errors (5xx)
+            if (response.ok) {
+                return response.json();
+            }
+
+            if (response.status >= 500 && attempt < MAX_RETRIES) {
+                // Server error, retry
+                const delay = BASE_DELAY * Math.pow(2, attempt);
+                console.warn(`Request failed with ${response.status}, retrying in ${delay}ms...`);
+                await new Promise(r => setTimeout(r, delay));
+                continue;
+            }
+
+            // If we are here, it's an error we shouldn't retry or we ran out of retries
+            const error: ApiError = await response.json().catch(() => ({ detail: `Error ${response.status}` }));
+            throw new Error(error.detail);
+
+        } catch (err: any) {
+            // Network errors (fetch failed entirely) should be retried
+            if (attempt < MAX_RETRIES) {
+                const delay = BASE_DELAY * Math.pow(2, attempt);
+                console.warn(`Network request failed (${err.message}), retrying in ${delay}ms...`);
+                await new Promise(r => setTimeout(r, delay));
+                continue;
+            }
+            throw err;
+        }
     }
-
-    return response.json();
 }

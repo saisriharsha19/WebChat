@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { useWebSocket } from './WebSocketContext';
 import { useAuth } from './AuthContext';
+import { useWakeLock } from './hooks/useWakeLock';
+import { useNetworkQuality } from './hooks/useNetworkQuality';
+import { usePermissionState } from './hooks/usePermissionState';
 
 interface CallState {
     status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' | 'rejected' | 'busy';
@@ -12,7 +15,7 @@ interface CallState {
 interface CallContextType {
     callState: CallState;
     remoteStream: MediaStream | null;
-    startCall: (targetUserId: number) => Promise<{ pc: RTCPeerConnection, stream: MediaStream }>;
+    startCall: (targetUserId: number) => Promise<{ pc: RTCPeerConnection, stream: MediaStream } | undefined>;
     answerIncomingCall: () => Promise<{ pc: RTCPeerConnection, stream: MediaStream } | undefined>;
     rejectIncomingCall: () => void;
     endCall: () => void;
@@ -54,6 +57,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const [isMuted, setIsMuted] = useState(false);
     const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'fair' | 'poor' | 'critical'>('good');
 
+    // Hooks for resilience
+    const { requestLock, releaseLock } = useWakeLock();
+    const networkQuality = useNetworkQuality();
+    const { state: micPermission, checkPermission: checkMicPermission } = usePermissionState('microphone');
+
     // WebRTC refs
     const peerConnection = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
@@ -86,6 +94,22 @@ export function CallProvider({ children }: { children: ReactNode }) {
         handleSignalMessageRef.current = handleSignalMessage;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [callState, remoteStream, isMuted, connectionQuality]); // Add dependencies used inside handleSignalMessage
+
+    // Wake Lock management
+    useEffect(() => {
+        if (callState.status === 'connected' || callState.status === 'calling' || callState.status === 'incoming') {
+            requestLock();
+        } else {
+            releaseLock();
+        }
+    }, [callState.status, requestLock, releaseLock]);
+
+    // Network Quality integration
+    useEffect(() => {
+        if (networkQuality.isPoorConnection) {
+            setConnectionQuality(prev => prev === 'critical' ? 'critical' : 'poor');
+        }
+    }, [networkQuality.isPoorConnection]);
 
     // Cleanup on unmount or user change
     useEffect(() => {
@@ -210,6 +234,13 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     const startCall = async (targetUserId: number) => {
+        // Permission check
+        await checkMicPermission();
+        if (micPermission === 'denied') {
+            alert("Microphone permission is denied. Please enable it in browser settings to start a call.");
+            return;
+        }
+
         const callId = crypto.randomUUID();
         setCallState({ status: 'calling', userId: targetUserId, callId });
         setRemoteStream(null);

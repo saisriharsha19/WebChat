@@ -67,10 +67,16 @@ export function usePushNotifications() {
         const registration = await navigator.serviceWorker.ready;
 
         try {
-            const sub = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-            });
+            // ALWAYS check for existing first to avoid "registration limit" errors
+            let sub = await registration.pushManager.getSubscription();
+
+            if (!sub) {
+                // Only create new if none exists
+                sub = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                });
+            }
 
             setSubscription(sub);
             setIsSubscribed(true);

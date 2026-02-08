@@ -289,9 +289,31 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener('focus', handleFocus);
     }, [token, user, lastUpdate]); // Dependencies matter for connect/syncMessages access
 
-    const sendMessage = (roomId: number, content: string, correlationId?: string) => {
+    const sendMessage = async (roomId: number, content: string, correlationId?: string) => {
         const cid = correlationId || `msg-${Date.now()}-${Math.random()}`;
+        const timestamp = new Date();
 
+        // 1. Optimistic Persistence
+        if (user) {
+            try {
+                await db.messages.add({
+                    content,
+                    sender_id: user.id,
+                    room_id: roomId,
+                    message_type: 'text',
+                    created_at: timestamp,
+                    updated_at: timestamp,
+                    is_deleted: false,
+                    status: 'pending',
+                    temp_id: cid
+                });
+                setLastUpdate(Date.now()); // Trigger UI update if needed
+            } catch (e) {
+                console.error("Failed to save optimistic message", e);
+            }
+        }
+
+        // 2. Send via WebSocket if open
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'message',
@@ -300,7 +322,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 correlation_id: cid
             }));
         } else {
-            console.log("WebSocket offline, message queued in DB by caller or ignored if not persisted");
+            console.log("WebSocket offline, message persisted as pending and will be synced later.");
+            // Trigger background sync if valid
+            if ('serviceWorker' in navigator && 'SyncManager' in window) {
+                navigator.serviceWorker.ready.then(registration => {
+                    return registration.sync.register('entropy-queue');
+                }).catch(err => console.log("Bg Sync registration failed", err));
+            }
         }
     };
 
