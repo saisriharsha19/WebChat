@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 interface CallState {
     status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' | 'rejected' | 'busy';
     userId?: number;
+    callId?: string; // UUID for race condition handling
     sdp?: any;
 }
 
@@ -65,13 +66,26 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const qualityHistoryRef = useRef<Array<{ rtt: number; jitter: number; packetLoss: number; timestamp: number }>>([]);
     const currentBitrateRef = useRef<number>(BITRATE_PRESETS.good);
 
-    // Register signal handler
+    // Use a ref for the handler to solve stale closure issues.
+    // The WebSocketContext calls the function we register, which will now
+    // delegate to the latest version of handleSignalMessageRef.current
+    const handleSignalMessageRef = useRef<(data: any) => Promise<void>>(() => Promise.resolve());
+
+    // Register signal handler (Stable callback that calls the ref)
     useEffect(() => {
         const unregister = registerSignalHandler((data: any) => {
-            handleSignalMessage(data);
+            if (handleSignalMessageRef.current) {
+                handleSignalMessageRef.current(data);
+            }
         });
         return () => unregister();
-    }, [registerSignalHandler]); // Dependency implies if WS reconnects, we might re-register? Ideally registerSignalHandler is stable.
+    }, [registerSignalHandler]);
+
+    // Update the ref whenever the state/dependencies change, so the handler always spots the latest state
+    useEffect(() => {
+        handleSignalMessageRef.current = handleSignalMessage;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [callState, remoteStream, isMuted, connectionQuality]); // Add dependencies used inside handleSignalMessage
 
     // Cleanup on unmount or user change
     useEffect(() => {
@@ -88,19 +102,27 @@ export function CallProvider({ children }: { children: ReactNode }) {
                         sendSignal({
                             type: 'call_reject',
                             target_user_id: data.sender_id,
-                            reason: 'busy'
+                            reason: 'busy',
+                            call_id: data.call_id
                         });
                         return;
                     }
                     setCallState({
                         status: 'incoming',
                         userId: data.sender_id,
+                        callId: data.call_id,
                         sdp: data.sdp
                     });
                     iceCandidatesBuffer.current = [];
                     break;
 
                 case 'call_answer':
+                    // Race condition check: Verify call_id matches
+                    if (callState.callId && data.call_id && data.call_id !== callState.callId) {
+                        console.warn("Ignoring call answer for different call ID", data.call_id, callState.callId);
+                        return;
+                    }
+
                     if (callTimeoutRef.current) {
                         clearTimeout(callTimeoutRef.current);
                         callTimeoutRef.current = null;
@@ -113,6 +135,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
                     break;
 
                 case 'call_rejected':
+                    if (callState.callId && data.call_id && data.call_id !== callState.callId) return;
+
                     if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
                     alert('Call rejected');
                     endCall();
@@ -121,16 +145,22 @@ export function CallProvider({ children }: { children: ReactNode }) {
                     break;
 
                 case 'call_ended':
+                    // Relaxed check for call_end, but ideally strict
+                    if (callState.callId && data.call_id && data.call_id !== callState.callId) return;
                     endCall();
                     break;
 
                 case 'call_handled': // Answered/Rejected elsewhere
+                    if (callState.callId && data.call_id && data.call_id !== callState.callId) return;
                     endCall();
                     setCallState({ status: 'idle' });
                     console.log('Call handled on another device:', data.reason);
                     break;
 
                 case 'ice_candidate':
+                    // Strict check can prevent processing candidates from old calls
+                    if (callState.callId && data.call_id && data.call_id !== callState.callId) return;
+
                     const candidate = new RTCIceCandidate(data.candidate);
                     if (peerConnection.current && peerConnection.current.remoteDescription) {
                         await peerConnection.current.addIceCandidate(candidate);
@@ -180,7 +210,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
 
     const startCall = async (targetUserId: number) => {
-        setCallState({ status: 'calling', userId: targetUserId });
+        const callId = crypto.randomUUID();
+        setCallState({ status: 'calling', userId: targetUserId, callId });
         setRemoteStream(null);
         iceCandidatesBuffer.current = [];
         qualityHistoryRef.current = [];
@@ -193,10 +224,15 @@ export function CallProvider({ children }: { children: ReactNode }) {
                 sendSignal({
                     type: 'ice_candidate',
                     target_user_id: targetUserId,
-                    candidate: event.candidate
+                    candidate: event.candidate,
+                    call_id: callId
                 });
             }
         };
+
+        // ... (middle) ...
+
+
 
         pc.oniceconnectionstatechange = () => {
             console.log("ICE Connection State:", pc.iceConnectionState);
@@ -233,7 +269,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
             sendSignal({
                 type: 'call_offer',
                 target_user_id: targetUserId,
-                sdp: offer
+                sdp: offer,
+                call_id: callId
             });
 
             if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
@@ -264,7 +301,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
                 sendSignal({
                     type: 'ice_candidate',
                     target_user_id: callState.userId,
-                    candidate: event.candidate
+                    candidate: event.candidate,
+                    call_id: callState.callId
                 });
             }
         };
@@ -307,7 +345,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
             sendSignal({
                 type: 'call_answer',
                 target_user_id: callState.userId,
-                sdp: answer
+                sdp: answer,
+                call_id: callState.callId
             });
 
             setCallState(prev => ({ ...prev, status: 'connected' }));
@@ -323,7 +362,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         if (callState.userId) {
             sendSignal({
                 type: 'call_reject',
-                target_user_id: callState.userId
+                target_user_id: callState.userId,
+                call_id: callState.callId
             });
         }
         endCall();
@@ -343,7 +383,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         if (callState.userId && ['connected', 'calling', 'incoming', 'busy'].includes(callState.status)) {
             sendSignal({
                 type: 'call_end',
-                target_user_id: callState.userId
+                target_user_id: callState.userId,
+                call_id: callState.callId
             });
         }
 

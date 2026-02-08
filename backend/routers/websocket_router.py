@@ -125,6 +125,21 @@ def save_message_to_db(db: Session, content: str, sender_id: int, room_id: int, 
     db.refresh(new_message)
     return new_message
 
+def check_is_friend(user_id: int, target_id: int, db: Session) -> bool:
+    from models import FriendRequest, FriendRequestStatus
+    from sqlalchemy import or_, and_
+    
+    # Check if they are friends
+    friendship = db.query(FriendRequest).filter(
+        or_(
+            and_(FriendRequest.sender_id == user_id, FriendRequest.receiver_id == target_id),
+            and_(FriendRequest.receiver_id == user_id, FriendRequest.sender_id == target_id)
+        ),
+        FriendRequest.status == FriendRequestStatus.ACCEPTED
+    ).first()
+    
+    return friendship is not None
+
 @router.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket, token: str):
     # Run DB creation in thread if it were expensive, but SessionLocal is cheap
@@ -338,63 +353,92 @@ async def websocket_chat(websocket: WebSocket, token: str):
                 pass
 
             # --- WebRTC Signaling ---
+            # --- WebRTC Signaling ---
             elif message_type == "call_offer":
                 target_id = data.get("target_user_id")
+                call_id = data.get("call_id")
+                
+                # Robustness: Check if friends
+                is_friend = await asyncio.to_thread(check_is_friend, user.id, target_id, db)
+                
+                if not is_friend:
+                     await websocket.send_json({
+                         "type": "error",
+                         "message": "You can only call accepted friends."
+                     })
+                     continue
+
                 await manager.send_personal_message({
                     "type": "call_offer",
                     "sender_id": user.id,
-                    "sdp": data.get("sdp")
+                    "sdp": data.get("sdp"),
+                    "call_id": call_id
                 }, target_id)
                 
             elif message_type == "call_answer":
                 target_id = data.get("target_user_id")
+                call_id = data.get("call_id")
+                
                 await manager.send_personal_message({
                     "type": "call_answer",
                     "sender_id": user.id,
-                    "sdp": data.get("sdp")
+                    "sdp": data.get("sdp"),
+                    "call_id": call_id
                 }, target_id)
                 
                 # Notify other sessions of the answerer that they handled the call
                 await manager.send_to_user_except(user.id, {
                     "type": "call_handled",
-                    "reason": "answered_elsewhere"
+                    "reason": "answered_elsewhere",
+                    "call_id": call_id
                 }, websocket)
 
 
             elif message_type == "call_reject":
                 # User rejected the call
                 target_id = data.get("target_user_id")
+                call_id = data.get("call_id") # Should pass call_id if available
+
                 # Notify caller
                 await manager.send_personal_message({
                     "type": "call_rejected",
-                    "sender_id": user.id
+                    "sender_id": user.id,
+                    "call_id": call_id
                 }, target_id)
 
                 # Notify other sessions of the rejecter
                 await manager.send_to_user_except(user.id, {
                     "type": "call_handled",
-                    "reason": "rejected_elsewhere"
+                    "reason": "rejected_elsewhere",
+                    "call_id": call_id
                 }, websocket)
 
             elif message_type == "call_end":
                 target_id = data.get("target_user_id")
+                call_id = data.get("call_id") # Should pass call_id if available
+
                 # Notify the other party
                 await manager.send_personal_message({
                     "type": "call_ended",
-                    "sender_id": user.id
+                    "sender_id": user.id,
+                    "call_id": call_id
                 }, target_id)
                 # Ensure other sessions of sender also reset
                 await manager.send_to_user_except(user.id, {
                     "type": "call_handled",
-                    "reason": "ended_elsewhere"
+                    "reason": "ended_elsewhere",
+                    "call_id": call_id
                 }, websocket)
 
             elif message_type == "ice_candidate":
                 target_id = data.get("target_user_id")
+                call_id = data.get("call_id")
+                
                 await manager.send_personal_message({
                     "type": "ice_candidate",
                     "sender_id": user.id,
-                    "candidate": data.get("candidate")
+                    "candidate": data.get("candidate"),
+                    "call_id": call_id
                 }, target_id)
     
     except WebSocketDisconnect:

@@ -270,6 +270,25 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         };
     }, [token, user]);
 
+    // Strict Sync on Window Focus
+    useEffect(() => {
+        const handleFocus = () => {
+            const now = Date.now();
+            // Throttle sync to once every 5 seconds to prevent spam
+            if (now - lastUpdate > 5000) {
+                console.log("Window focused, strictly syncing messages...");
+                if (wsRef.current?.readyState === WebSocket.OPEN) {
+                    syncMessages();
+                } else if (token && user) {
+                    connect();
+                }
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, [token, user, lastUpdate]); // Dependencies matter for connect/syncMessages access
+
     const sendMessage = (roomId: number, content: string, correlationId?: string) => {
         const cid = correlationId || `msg-${Date.now()}-${Math.random()}`;
 
