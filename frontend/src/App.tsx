@@ -82,13 +82,13 @@ function AppContent() {
         return <LoginPage />;
     }
 
-    const { subscribeToPush } = usePushNotifications();
+    const { subscribeToPush, isSubscribed } = usePushNotifications();
 
     useEffect(() => {
-        if (user) {
+        if (user && !isSubscribed) {
             subscribeToPush();
         }
-    }, [user, subscribeToPush]);
+    }, [user, subscribeToPush, isSubscribed]);
 
     return (
         <div className="h-full w-full">

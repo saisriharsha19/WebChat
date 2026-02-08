@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -37,27 +37,7 @@ export function usePushNotifications() {
         }
     }, []);
 
-    const subscribeToPush = async () => {
-        if (!('serviceWorker' in navigator)) return;
-
-        const registration = await navigator.serviceWorker.ready;
-
-        try {
-            const sub = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-            });
-
-            setSubscription(sub);
-            setIsSubscribed(true);
-            await sendSubscriptionToBackend(sub);
-            console.log("Subscribed to push notifications");
-        } catch (error) {
-            console.error("Failed to subscribe to push", error);
-        }
-    };
-
-    const sendSubscriptionToBackend = async (sub: PushSubscription) => {
+    const sendSubscriptionToBackend = useCallback(async (sub: PushSubscription) => {
         const keys = sub.toJSON().keys;
         if (!keys) return;
 
@@ -79,7 +59,27 @@ export function usePushNotifications() {
         } catch (error) {
             console.error("Failed to send subscription to backend", error);
         }
-    };
+    }, []);
+
+    const subscribeToPush = useCallback(async () => {
+        if (!('serviceWorker' in navigator)) return;
+
+        const registration = await navigator.serviceWorker.ready;
+
+        try {
+            const sub = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+            });
+
+            setSubscription(sub);
+            setIsSubscribed(true);
+            await sendSubscriptionToBackend(sub);
+            console.log("Subscribed to push notifications");
+        } catch (error) {
+            console.error("Failed to subscribe to push", error);
+        }
+    }, [sendSubscriptionToBackend]);
 
     return { isSubscribed, subscribeToPush, subscription };
 }
