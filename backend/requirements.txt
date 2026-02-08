@@ -13,3 +13,4 @@ email-validator==2.2.0
 aiofiles==23.1.0
 pillow>=11.0.0
 brotli==1.1.0
+pywebpush>=1.14.0
