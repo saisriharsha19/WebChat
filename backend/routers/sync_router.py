@@ -23,6 +23,19 @@ async def sync_messages(
     
     # Process and save offline messages from client
     for msg in sync_data.messages:
+        # Check for duplicates (Idempotency) based on content, room, sender, and exact timestamp
+        # This prevents double-insertion if client retries or had local double-write issues
+        existing_msg = db.query(Message).filter(
+            Message.sender_id == current_user.id,
+            Message.room_id == msg.room_id,
+            Message.content == msg.content,
+            Message.created_at == msg.client_timestamp
+        ).first()
+
+        if existing_msg:
+            synced_messages.append(existing_msg)
+            continue
+
         new_message = Message(
             content=msg.content,
             sender_id=current_user.id,

@@ -77,56 +77,8 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         if (navigator.vibrate) navigator.vibrate(10);
 
         if (editingMessageId) {
-            <div className="relative bg-surface-sidebar border border-white/10 rounded-2xl shadow-sm focus-within:border-accent/50 focus-within:shadow-[0_0_0_2px_rgba(94,106,210,0.2)] focus-within:bg-surface-hover/50 transition-all duration-200">
-                <textarea
-                    value={inputValue}
-                    onChange={e => setInputValue(e.target.value)}
-                    onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSend();
-                        }
-                    }}
-                    placeholder={`Message #${roomId}`}
-                    className="w-full bg-transparent border-none text-base text-txt-primary px-4 py-3 pb-10 focus:ring-0 focus:outline-none rounded-2xl resize-none min-h-[56px] max-h-[160px] leading-relaxed placeholder:text-txt-tertiary"
-                    rows={1}
-                />
-
-                {/* Toolbar inside input */}
-                <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="hover:bg-white/5 p-1 rounded-full transition-colors">
-                            <FileUploader roomId={roomId} onUploadComplete={() => { }} />
-                        </div>
-                        <div className="text-[10px] text-txt-tertiary pointer-events-none select-none">
-                            {editingMessageId ? (
-                                <span className="text-accent font-medium animate-pulse">Editing...</span>
-                            ) : (
-                                <span className="hidden md:inline">Enter to send</span>
-                            )}
-                        </div>
-                        {editingMessageId && (
-                            <button
-                                onClick={() => {
-                                    setEditingMessageId(null);
-                                    setInputValue('');
-                                }}
-                                className="text-[10px] text-red-400 hover:text-red-300 px-2 py-0.5 bg-red-500/10 rounded-md transition-colors"
-                            >
-                                Cancel
-                            </button>
-                        )}
-                    </div>
-
-                    <button
-                        onClick={handleSend}
-                        disabled={!inputValue.trim()}
-                        className="p-3 bg-accent text-white rounded-xl disabled:opacity-50 disabled:grayscale hover:bg-accent-hover active:scale-95 transition-all shadow-md shadow-accent/20"
-                    >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                    </button>
-                </div>
-            </div>
+            // Note: The original file had a partial JSX block here that was unused/invalid. 
+            // I am cleaning it up as part of this rewrite to fix the file structure.
             const content = inputValue.trim();
             // Optimistic update for edit
             try {
@@ -155,9 +107,6 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
             }).catch(async (err) => {
                 console.error("Edit failed:", err);
                 alert("Edit failed");
-                // Revert optimistic update? 
-                // Too complex for now, user will just see it revert if they refresh or if server sends error?
-                // Ideally we revert here.
             });
         } else {
             const content = inputValue.trim();
@@ -165,44 +114,15 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
 
             // Optimistic update
             try {
-                // Add to local DB immediately with 'pending' status
-                // The sendMessage function in WebSocketContext handles `db.messages.add`
-                // BUT, to be "instant", we should ensure it happens without waiting for the network socket if possible
-
+                // Generate a correlation ID to deduplicate/link the message
                 const tempId = `temp-${Date.now()}-${Math.random()}`;
 
-                await db.messages.add({
-                    content,
-                    sender_id: user!.id,
-                    room_id: roomId,
-                    message_type: 'text',
-                    created_at: new Date(),
-                    updated_at: new Date(),
-                    is_deleted: false,
-                    status: 'pending',
-                    temp_id: tempId,
-                    attachments: [],
-                    // Mock sender for display using actual user auth data
-                    sender: {
-                        id: user!.id,
-                        username: user!.username,
-                        display_name: user!.display_name,
-                        avatar_url: user!.avatar_url,
-                        email: user!.email || '',
-                        theme_preference: user!.theme_preference || 'light',
-                        is_active: true,
-                        created_at: new Date(),
-                        last_seen: new Date()
-                    }
-                });
-
-                // Now send via network
-                // Generate a correlation ID to deduplicate/link the message
-                const correlationId = tempId;
-                sendMessage(roomId, content, correlationId);
+                // Now send via network (context handles local DB add)
+                await sendMessage(roomId, content, tempId);
 
             } catch (err) {
-                console.error("Failed to optimistically add message:", err);
+                console.error("Failed to send message:", err);
+                alert("Failed to send message");
             }
         }
     };
@@ -247,7 +167,6 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                                 } else {
                                     // Fallback if members not synced or found
                                     console.warn("Could not find other member to call");
-                                    // Maybe fallback to fetching room info??
                                 }
                             }}
                             className="p-3 text-txt-tertiary hover:text-txt-primary hover:bg-surface-hover rounded-full transition-all active:scale-95"

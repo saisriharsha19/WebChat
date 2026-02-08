@@ -11,7 +11,7 @@ type WSMessage = {
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 interface WebSocketContextType {
-    sendMessage: (roomId: number, content: string, correlationId?: string) => void;
+    sendMessage: (roomId: number, content: string, correlationId?: string) => Promise<void>;
     joinRoom: (roomId: number) => void;
     leaveRoom: (roomId: number) => void;
     markAsRead: (messageId: number, roomId: number) => void;
@@ -89,8 +89,28 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             });
 
             // 5. Update local DB with result
+            // 5. Update local DB with result
             await db.transaction('rw', db.messages, async () => {
-                // Process new messages from server
+                // Process newly synced messages (our own messages that were pending)
+                // The server returns them with their real IDs and timestamps
+                if (response.synced_messages) {
+                    for (const msg of response.synced_messages) {
+                        await db.messages.put({
+                            id: msg.id,
+                            content: msg.content,
+                            sender_id: msg.sender_id,
+                            room_id: parseInt(msg.room_id),
+                            message_type: msg.message_type || 'text',
+                            created_at: new Date(msg.created_at),
+                            updated_at: new Date(msg.created_at),
+                            is_deleted: false,
+                            status: 'synced',
+                            attachments: msg.attachments || []
+                        });
+                    }
+                }
+
+                // Process new messages from others
                 for (const msg of response.new_messages) {
                     await db.messages.put({
                         id: msg.id,
@@ -107,7 +127,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 }
 
                 // Clean up pending that were synced
-                // Assuming server processes all pending sent
+                // We delete the 'pending' versions because we just upserted the 'synced' versions (with real IDs) above.
+                // Note: If temp_id matches, we could try to map, but since we are inserting new rows with real IDs,
+                // we just need to remove the old pending rows.
                 if (offlineMessages.length > 0) {
                     const tempIds = offlineMessages.map(m => m.temp_id).filter(id => id !== undefined);
                     if (tempIds.length > 0) {
