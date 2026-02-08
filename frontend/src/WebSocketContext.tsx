@@ -18,6 +18,7 @@ interface WebSocketContextType {
     isConnected: boolean;
     connectionStatus: ConnectionStatus;
     lastUpdate: number;
+    lastFriendUpdate: number;
     onlineUsers: Map<number, string>;
 
     // Signaling for other contexts (like CallContext)
@@ -32,6 +33,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const wsRef = useRef<WebSocket | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
     const [lastUpdate, setLastUpdate] = useState(0);
+    const [lastFriendUpdate, setLastFriendUpdate] = useState(0);
     const reconnectTimeoutRef = useRef<number | null>(null);
     const reconnectAttemptsRef = useRef(0);
     const pingIntervalRef = useRef<number | null>(null);
@@ -207,6 +209,23 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             });
                             setLastUpdate(Date.now());
                         }
+                    } else if (['friend_request', 'friend_accepted', 'friend_request_rejected'].includes(data.type)) {
+                        setLastFriendUpdate(Date.now());
+
+                        // Show notification if supported
+                        if (Notification.permission === 'granted' && document.hidden) {
+                            if (data.type === 'friend_request') {
+                                new Notification('New Friend Request', {
+                                    body: `${data.sender.username} sent you a friend request`,
+                                    icon: '/pwa-192x192.png' // assumption
+                                });
+                            } else if (data.type === 'friend_accepted') {
+                                new Notification('Friend Request Accepted', {
+                                    body: `${data.friend.username} accepted your friend request`,
+                                    icon: '/pwa-192x192.png'
+                                });
+                            }
+                        }
                     }
                 } catch (err) {
                     console.error('Error processing WebSocket message:', err);
@@ -304,6 +323,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 isConnected: connectionStatus === 'connected',
                 connectionStatus,
                 lastUpdate,
+                lastFriendUpdate,
                 onlineUsers,
                 sendSignal,
                 registerSignalHandler

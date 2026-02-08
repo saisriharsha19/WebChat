@@ -76,7 +76,7 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
                     <button
                         key={room.id}
                         onClick={() => onSelectRoom(room.id)}
-                        className={`w-full text-left px-3 py-2.5 rounded-[8px] text-[14px] font-medium transition-all duration-200 flex items-center gap-3 group hover:scale-[1.01]
+                        className={`w-full text-left px-3 py-3 rounded-[10px] text-[14px] font-medium transition-all duration-200 flex items-center gap-3 group hover:scale-[1.01] active:scale-[0.98]
                               ${currentRoomId === room.id
                                 ? 'bg-[#6366f1]/10 text-[#fafafa] border border-[#6366f1]/20 shadow-sm'
                                 : 'text-[#a1a1aa] border border-transparent hover:bg-[#111113] hover:text-[#fafafa]'}`}
@@ -102,7 +102,7 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
                     <button
                         key={room.id}
                         onClick={() => onSelectRoom(room.id)}
-                        className={`w-full text-left px-3 py-2.5 rounded-[8px] text-[14px] font-medium transition-all duration-200 flex items-center gap-3 hover:scale-[1.01]
+                        className={`w-full text-left px-3 py-3 rounded-[10px] text-[14px] font-medium transition-all duration-200 flex items-center gap-3 hover:scale-[1.01] active:scale-[0.98]
                                 ${currentRoomId === room.id
                                 ? 'bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/20'
                                 : 'text-[#a1a1aa] hover:bg-[#111113] hover:text-[#fafafa]'}`}

@@ -58,6 +58,7 @@ export function VoiceCallModal() {
     // Hidden audio element for remote stream
     // Audio element ref
     const audioRef = useRef<HTMLAudioElement>(null);
+    const ringtoneRef = useRef<HTMLAudioElement>(null);
 
     useEffect(() => {
         if (remoteStream && audioRef.current) {
@@ -66,6 +67,16 @@ export function VoiceCallModal() {
             audioRef.current.play().catch(e => console.error("Auto-play failed", e));
         }
     }, [remoteStream]);
+
+    // Handle Ringtone
+    useEffect(() => {
+        if (callState.status === 'incoming') {
+            ringtoneRef.current?.play().catch(e => console.log("Ringtone play error", e));
+        } else {
+            ringtoneRef.current?.pause();
+            if (ringtoneRef.current) ringtoneRef.current.currentTime = 0;
+        }
+    }, [callState.status]);
 
     if (callState.status === 'idle') return null;
 
@@ -76,6 +87,7 @@ export function VoiceCallModal() {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-accent/20 blur-[80px] rounded-full pointer-events-none"></div>
 
                 <audio ref={audioRef} autoPlay hidden />
+                <audio ref={ringtoneRef} src="/ringtone.mp3" loop hidden />
 
                 {connectionStatus === 'reconnecting' && (
                     <div className="absolute inset-0 z-20 bg-black/50 flex items-center justify-center backdrop-blur-sm">

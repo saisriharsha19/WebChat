@@ -75,11 +75,14 @@ function AppContent() {
     );
 }
 
+import { ReloadPrompt } from './components/ReloadPrompt';
+
 function App() {
     return (
         <div className="w-full h-full overflow-hidden">
             <AuthProvider>
                 <AppContent />
+                <ReloadPrompt />
             </AuthProvider>
         </div>
     );

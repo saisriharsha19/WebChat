@@ -10,7 +10,7 @@ interface FriendManagerProps {
 }
 
 export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds = [] }: FriendManagerProps) {
-    const { onlineUsers } = useWebSocket();
+    const { onlineUsers, lastFriendUpdate } = useWebSocket();
     const { startCall } = useCall();
     const [activeTab, setActiveTab] = useState<'friends' | 'requests' | 'search'>('friends');
 
@@ -21,11 +21,18 @@ export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds 
     const [searchQuery, setSearchQuery] = useState('');
 
     // Poll for updates (temporary until full WS events are handling lists)
+    // Poll for updates (temporary until full WS events are handling lists)
     // Ideally we listen to WS events to update these lists
     useEffect(() => {
+        // Always load requests to update badge
+        loadRequests();
+
         if (activeTab === 'friends') loadFriends();
-        if (activeTab === 'requests') loadRequests();
-    }, [activeTab]);
+        // if (activeTab === 'requests') loadRequests(); // Already loaded above
+
+        if (activeTab === 'search' && searchQuery) handleSearch(searchQuery);
+
+    }, [activeTab, lastFriendUpdate]);
 
     const loadFriends = async () => {
         try {

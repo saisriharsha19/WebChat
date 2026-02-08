@@ -107,29 +107,36 @@ export default function Dashboard() {
             ) : (
                 <EmptyState
                     icon={
-                        <div className="w-20 h-20 rounded-xl bg-surface-hover border border-border flex items-center justify-center">
-                            <svg className="text-txt-secondary" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                            </svg>
-                        </div>
+                        <svg className="text-accent" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
                     }
-                    heading="No conversation selected"
-                    description="Choose a channel from the sidebar or start a new conversation to begin chatting with your team."
+                    heading="Welcome to Entropy"
+                    description="Your secure, offline-first workspace. Select a conversation to start chatting or connect with your team."
                     actions={
-                        <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
                             <button
                                 onClick={() => setShowDirectory(true)}
-                                className="saas-btn-primary min-w-[140px]"
+                                className="flex flex-col items-center p-4 bg-surface-sidebar hover:bg-surface-hover border border-border rounded-xl transition-all group text-left hover:scale-[1.02] active:scale-[0.98]"
                             >
-                                Friends & Search
+                                <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent mb-3 group-hover:bg-accent group-hover:text-white transition-colors">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                </div>
+                                <span className="text-sm font-semibold text-txt-primary">Find Friends</span>
+                                <span className="text-xs text-txt-tertiary mt-1">Search directory & connect</span>
                             </button>
+
                             <button
                                 onClick={() => setShowCreateGroup(true)}
-                                className="saas-btn min-w-[140px]"
+                                className="flex flex-col items-center p-4 bg-surface-sidebar hover:bg-surface-hover border border-border rounded-xl transition-all group text-left hover:scale-[1.02] active:scale-[0.98]"
                             >
-                                Create Group
+                                <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500 mb-3 group-hover:bg-orange-500 group-hover:text-white transition-colors">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+                                </div>
+                                <span className="text-sm font-semibold text-txt-primary">Create Group</span>
+                                <span className="text-xs text-txt-tertiary mt-1">Start a new project team</span>
                             </button>
-                        </>
+                        </div>
                     }
                 />
             )}

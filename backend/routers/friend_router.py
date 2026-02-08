@@ -48,6 +48,32 @@ async def send_friend_request(
     db.add(new_request)
     db.commit()
     db.refresh(new_request)
+
+    # Real-time notification
+    from routers.websocket_router import manager
+    try:
+        await manager.send_personal_message(
+            {
+                "type": "friend_request",
+                "request": {
+                    "id": new_request.id,
+                    "sender_id": new_request.sender_id,
+                    "receiver_id": new_request.receiver_id,
+                    "status": new_request.status,
+                    "created_at": new_request.created_at.isoformat() if new_request.created_at else None
+                },
+                "sender": {
+                    "id": current_user.id,
+                    "username": current_user.username,
+                    "display_name": current_user.display_name,
+                    "avatar_url": current_user.avatar_url
+                }
+            },
+            user_id
+        )
+    except Exception as e:
+        print(f"Failed to send WS notification: {e}")
+
     return new_request
 
 @router.put("/request/{request_id}/{action}", response_model=FriendRequestResponse)
@@ -76,6 +102,71 @@ async def respond_to_friend_request(
         
     db.commit()
     db.refresh(request)
+
+    # Real-time notifications
+    from routers.websocket_router import manager
+    try:
+        if action == "accept":
+            # Notify sender they have a new friend
+            await manager.send_personal_message(
+                {
+                    "type": "friend_accepted",
+                    "friend": {
+                        "id": current_user.id,
+                        "username": current_user.username,
+                        "display_name": current_user.display_name,
+                        "avatar_url": current_user.avatar_url,
+                        "is_online": True # rough guess, or check manager
+                    }
+                },
+                request.sender_id
+            )
+            # Notify receiver (current user) to update their list/UI
+            await manager.send_personal_message(
+                {
+                    "type": "friend_accepted",
+                    "friend": { # We need the sender's info
+                        "id": request.sender_id,
+                        # Ideally we fetch sender details. 
+                        # relying on frontend to re-fetch or we send minimal data?
+                        # Let's simple-fetch sender
+                        # OR just send event "refresh_friends"
+                    }
+                },
+                current_user.id
+            )
+            
+            # Better approach: Fetch sender details to send full object
+            sender = db.query(User).filter(User.id == request.sender_id).first()
+            if sender:
+                await manager.send_personal_message(
+                    {
+                        "type": "friend_accepted",
+                        "friend": {
+                            "id": sender.id,
+                            "username": sender.username,
+                            "display_name": sender.display_name,
+                            "avatar_url": sender.avatar_url,
+                            "is_online": sender.id in manager.active_connections
+                        }
+                    },
+                    current_user.id
+                )
+
+        elif action == "reject":
+            # Notify sender? Maybe not needed for reject, but updating their UI from "pending" to "rejected" or "none" is good
+             await manager.send_personal_message(
+                {
+                    "type": "friend_request_rejected",
+                    "request_id": request.id,
+                    "receiver_id": current_user.id
+                },
+                request.sender_id
+            )
+
+    except Exception as e:
+        print(f"Failed to send WS notification: {e}")
+
     return request
 
 @router.get("/", response_model=List[UserResponse])
