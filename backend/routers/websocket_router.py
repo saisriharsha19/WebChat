@@ -220,6 +220,10 @@ class ConnectionManager:
             payload["sdp"] = data.get("sdp")
         elif msg_type == "ice_candidate":
             payload["candidate"] = data.get("candidate")
+        elif msg_type == "call_reject":
+            payload["type"] = "call_rejected" # Restore original behavior
+        elif msg_type == "call_end":
+            payload["type"] = "call_ended" # Restore original behavior
             
         await self.send_to_user(target_id, payload)
         
