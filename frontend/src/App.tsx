@@ -12,10 +12,33 @@ import './style.css';
 function AppContent() {
     const { user, isLoading } = useAuth();
 
-    // Check for DB Reset / System Mismatch
+    // Check for DB Reset / System Mismatch / Version Update
     useEffect(() => {
         const checkSystem = async () => {
             try {
+                // 1. Check Version Match
+                const storedVersion = localStorage.getItem('app_version');
+                const currentVersion = __APP_VERSION__;
+
+                if (storedVersion !== currentVersion) {
+                    console.warn(`Version mismatch (Stored: ${storedVersion}, Current: ${currentVersion}). Resetting cache...`);
+
+                    // Clear IndexedDB
+                    await db.delete();
+                    await db.open(); // Re-open (recreates schema)
+
+                    // Clear LocalStorage (but preserve system info if valid, though easier to wipe all for strict reset)
+                    localStorage.clear();
+
+                    // Set new version
+                    localStorage.setItem('app_version', currentVersion);
+
+                    // Reload to ensure clean state
+                    window.location.reload();
+                    return; // Stop further checks
+                }
+
+                // 2. Check System Instance (Backend Reset)
                 const res = await fetch(API_ENDPOINTS.systemInfo);
                 if (res.ok) {
                     const data = await res.json();
@@ -28,6 +51,9 @@ function AppContent() {
                         await db.open();
                         localStorage.clear(); // Clear all tokens/settings
                         localStorage.setItem('sys_instance_id', serverId);
+                        // Also set version to avoid double loop
+                        localStorage.setItem('app_version', currentVersion);
+
                         window.location.reload();
                     } else if (serverId && !localId) {
                         // First run or valid
