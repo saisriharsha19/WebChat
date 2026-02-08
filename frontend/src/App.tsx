@@ -11,10 +11,19 @@ import './style.css';
 
 function AppContent() {
     const { user, isLoading } = useAuth();
+    const { subscribeToPush, isSubscribed } = usePushNotifications(); // Moved to top level
 
     // Check for DB Reset / System Mismatch / Version Update
     useEffect(() => {
         const checkSystem = async () => {
+            // ... existing checkSystem logic (omitted for brevity in replacement, but needs to be there)
+            // I shouldn't omit it if I'm replacing the whole function block.
+            // Wait, replace_file_content replaces a chunk.
+            // I should be careful not to delete checkSystem logic if I don't provide it.
+            // The user instruction said "Move usePushNotifications...".
+            // It's safer to rewrite the whole function body or use multi_replace if I can target specific parts.
+            // But the structure changes significantly (logic flow).
+            // Let's rewrite the return logic.
             try {
                 // 1. Check Version Match
                 const storedVersion = localStorage.getItem('app_version');
@@ -22,20 +31,12 @@ function AppContent() {
 
                 if (storedVersion !== currentVersion) {
                     console.warn(`Version mismatch (Stored: ${storedVersion}, Current: ${currentVersion}). Resetting cache...`);
-
-                    // Clear IndexedDB
                     await db.delete();
-                    await db.open(); // Re-open (recreates schema)
-
-                    // Clear LocalStorage (but preserve system info if valid, though easier to wipe all for strict reset)
+                    await db.open();
                     localStorage.clear();
-
-                    // Set new version
                     localStorage.setItem('app_version', currentVersion);
-
-                    // Reload to ensure clean state
                     window.location.reload();
-                    return; // Stop further checks
+                    return;
                 }
 
                 // 2. Check System Instance (Backend Reset)
@@ -49,14 +50,11 @@ function AppContent() {
                         console.warn("System Reset Detected! Wiping local data...");
                         await db.delete();
                         await db.open();
-                        localStorage.clear(); // Clear all tokens/settings
+                        localStorage.clear();
                         localStorage.setItem('sys_instance_id', serverId);
-                        // Also set version to avoid double loop
                         localStorage.setItem('app_version', currentVersion);
-
                         window.location.reload();
                     } else if (serverId && !localId) {
-                        // First run or valid
                         localStorage.setItem('sys_instance_id', serverId);
                     }
                 }
@@ -67,6 +65,12 @@ function AppContent() {
 
         checkSystem();
     }, []);
+
+    useEffect(() => {
+        if (user && !isSubscribed) {
+            subscribeToPush();
+        }
+    }, [user, subscribeToPush, isSubscribed]);
 
     if (isLoading) {
         return (
@@ -81,14 +85,6 @@ function AppContent() {
     if (!user) {
         return <LoginPage />;
     }
-
-    const { subscribeToPush, isSubscribed } = usePushNotifications();
-
-    useEffect(() => {
-        if (user && !isSubscribed) {
-            subscribeToPush();
-        }
-    }, [user, subscribeToPush, isSubscribed]);
 
     return (
         <div className="h-full w-full">
