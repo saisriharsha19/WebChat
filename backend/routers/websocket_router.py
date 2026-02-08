@@ -268,6 +268,64 @@ async def websocket_chat(websocket: WebSocket, token: str):
                          })
                     
                     await manager.broadcast_to_room(room_id, response)
+
+                    # --- Push Notifications ---
+                    try:
+                        from utils.push_service import send_push_notification
+
+                        def send_push_to_members():
+                             # Re-query DB in this thread if needed, or use the existing session if thread-safe (it's not across threads usually)
+                             # But here we are inside a function called by asyncio.to_thread? No.
+                             # We are in async function.
+                             # We need a new session or use the existing one CAREFULLY.
+                             # Actually send_push_notification takes 'db'.
+                             # Since we are spawning a background task, we should probably create a new session scope
+                             # to avoid closing 'db' while this runs if 'db' is closed in 'finally'.
+                             # 'db' is closed in 'finally' block of websocket_chat.
+                             # So we MUST create a new session.
+                             pass
+
+                        async def notify_offline_users():
+                            # Create new session for background task
+                            notify_db = SessionLocal()
+                            try:
+                                # Get room details and members
+                                room = notify_db.query(Room).filter(Room.id == room_id).first()
+                                members = notify_db.query(RoomMember).filter(RoomMember.room_id == room_id).all()
+                                
+                                title = "New Message"
+                                if room and room.type == "group":
+                                    title = room.name or "Group Chat"
+                                else:
+                                    title = user.display_name or user.username
+                                
+                                for member in members:
+                                    if member.user_id != user.id:
+                                        # Ideally check if user is connected via WS and don't push if online?
+                                        # But user asked for PWA experience. Usually we notify if app is in background.
+                                        # Web Push doesn't easily know if app is in foreground.
+                                        # We'll send it, and let the Service Worker decide (if we implement logic there)
+                                        # or the browser decides (if focused, it might mute it).
+                                        # Or we check manager.active_connections.
+                                        is_online = member.user_id in manager.active_connections
+                                        if not is_online:
+                                            send_push_notification(
+                                                notify_db, 
+                                                member.user_id, 
+                                                title, 
+                                                content[:100] if content else "Sent a file", 
+                                                "/"
+                                            )
+                            except Exception as e:
+                                print(f"Push notification error: {e}")
+                            finally:
+                                notify_db.close()
+
+                        asyncio.create_task(notify_offline_users())
+
+                    except Exception as e:
+                        print(f"Error initiating push: {e}")
+
                 except Exception as e:
                     print(f"Error handling message: {e}")
                     continue

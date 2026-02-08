@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { AuthProvider, useAuth } from './AuthContext.tsx';
 import { WebSocketProvider } from './WebSocketContext.tsx';
+import { usePushNotifications } from './hooks/usePushNotifications';
 import LoginPage from './components/LoginPage.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import './style.css';
@@ -20,6 +22,14 @@ function AppContent() {
     if (!user) {
         return <LoginPage />;
     }
+
+    const { subscribeToPush } = usePushNotifications();
+
+    useEffect(() => {
+        if (user) {
+            subscribeToPush();
+        }
+    }, [user, subscribeToPush]);
 
     return (
         <div className="h-full w-full">
