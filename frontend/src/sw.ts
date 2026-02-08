@@ -35,10 +35,14 @@ const bgSyncPlugin = new BackgroundSyncPlugin('entropy-queue', {
 });
 
 // Sync Endpoint - Network Only with Background Sync
+// NetworkFirst tries to cache the response, which fails for POST.
+// We use NetworkOnly because we don't need to read the response from cache, 
+// we only need to queue failed requests.
+import { NetworkOnly } from 'workbox-strategies';
+
 registerRoute(
     ({ url }) => url.pathname.startsWith('/api/sync') || url.pathname.startsWith('/api/messages'),
-    new NetworkFirst({
-        cacheName: 'api-mutations',
+    new NetworkOnly({
         plugins: [bgSyncPlugin],
         networkTimeoutSeconds: 10,
     }),
