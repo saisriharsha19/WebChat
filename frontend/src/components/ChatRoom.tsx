@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useWebSocket } from '../WebSocketContext';
 import { useCall } from '../CallContext';
 import { useAuth } from '../AuthContext';
@@ -8,6 +8,7 @@ import { FileUploader } from './FileUploader';
 import { fetchWithAuth, API_ENDPOINTS, API_URL } from '../lib/api';
 
 import { getRoomName } from '../lib/roomUtils';
+import { Message, RoomMember } from '../types';
 
 interface ChatRoomProps {
     roomId: string;
@@ -55,7 +56,7 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
     }, [roomId, roomDetails]);
 
     // Live query from IndexedDB
-    const messages = useLiveQuery(
+    const rawMessages = useLiveQuery(
         () =>
             db.messages
                 .where('room_id')
@@ -63,6 +64,20 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                 .sortBy('created_at'),
         [roomId, lastUpdate]
     );
+
+    // Hydrate messages with sender details from room members
+    const messages = useMemo(() => {
+        if (!rawMessages) return [];
+        return rawMessages.map((msg: any) => {
+            // Find sender in room members
+            const members = roomDetails?.members as RoomMember[] | undefined;
+            const member = members?.find(m => m.user_id === msg.sender_id);
+            return {
+                ...msg,
+                sender: member?.user || { username: 'Unknown', display_name: 'Unknown', id: msg.sender_id }
+            } as Message;
+        });
+    }, [rawMessages, roomDetails]);
 
     useEffect(() => {
         joinRoom(roomId);
@@ -89,7 +104,7 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                     // Only mark read if it's not my message
                     if (msgId && senderId && senderId !== user?.id) {
                         // Find the message object to check if already read
-                        const msg = messages.find(m => m.id === msgId);
+                        const msg = messages.find((m: Message) => m.id === msgId);
                         const alreadyRead = msg?.read_receipts?.some((r: any) => r.user_id === user?.id);
 
                         if (!alreadyRead) {
@@ -292,11 +307,11 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
             <div className="flex-1 overflow-y-auto saas-scrollbar flex flex-col px-4 pt-[70px] pb-4 space-y-6 scroll-smooth">
                 <div className="flex-1" />
 
-                {messages?.map((msg, i) => {
+                {messages?.map((msg: any, i: number) => {
                     const isOwn = msg.sender_id === user?.id;
                     const prevMsg = messages[i - 1];
                     const isSequence = prevMsg && prevMsg.sender_id === msg.sender_id &&
-                        (msg.created_at.getTime() - prevMsg.created_at.getTime() < 300000); // 5 mins grouping
+                        (new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() < 300000); // 5 mins grouping
 
                     return (
                         <div key={msg.id || msg.temp_id}>
