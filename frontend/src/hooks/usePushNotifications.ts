@@ -21,6 +21,7 @@ function urlBase64ToUint8Array(base64String: string) {
 export function usePushNotifications() {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [subscription, setSubscription] = useState<PushSubscription | null>(null);
+    const [permission, setPermission] = useState(Notification.permission);
 
     useEffect(() => {
         if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -80,6 +81,7 @@ export function usePushNotifications() {
 
             setSubscription(sub);
             setIsSubscribed(true);
+            setPermission(Notification.permission);
             await sendSubscriptionToBackend(sub);
             console.log("Subscribed to push notifications");
         } catch (error) {
@@ -87,5 +89,5 @@ export function usePushNotifications() {
         }
     }, [sendSubscriptionToBackend]);
 
-    return { isSubscribed, subscribeToPush, subscription };
+    return { isSubscribed, subscribeToPush, subscription, permission };
 }

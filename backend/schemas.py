@@ -104,6 +104,7 @@ class MessageResponse(BaseModel):
     is_deleted: bool
     is_edited: bool
     attachments: List[FileAttachmentResponse] = []
+    read_receipts: List["ReadReceiptResponse"] = []
     
     model_config = ConfigDict(from_attributes=True)
 

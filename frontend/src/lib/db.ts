@@ -36,6 +36,7 @@ export interface Message {
     temp_id?: string;
     sender?: User;
     attachments?: FileAttachment[]; // Added
+    read_receipts?: ReadReceipt[]; // Added
 }
 
 export interface ReadReceipt {

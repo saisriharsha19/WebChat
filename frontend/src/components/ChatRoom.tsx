@@ -13,7 +13,7 @@ interface ChatRoomProps {
 }
 
 export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
-    const { sendMessage, joinRoom, isConnected, lastUpdate } = useWebSocket();
+    const { sendMessage, joinRoom, isConnected, lastUpdate, markAsRead } = useWebSocket();
     const { startCall } = useCall();
     const { user } = useAuth();
     const [inputValue, setInputValue] = useState('');
@@ -69,6 +69,48 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }, [messages?.length, roomId]);
+
+    // Read Receipt Observer
+    const observer = useRef<IntersectionObserver | null>(null);
+    useEffect(() => {
+        if (!messages) return;
+
+        // Disconnect previous
+        if (observer.current) observer.current.disconnect();
+
+        observer.current = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    const msgId = Number(entry.target.getAttribute('data-msg-id'));
+                    const senderId = Number(entry.target.getAttribute('data-sender-id'));
+
+                    // Only mark read if it's not my message
+                    if (msgId && senderId && senderId !== user?.id) {
+                        // Check if already read locally to avoid spamming (optimization)
+                        // But context handles deduping too.
+                        markAsRead(msgId, roomId);
+                        // Stop observing this one
+                        observer.current?.unobserve(entry.target);
+                    }
+                }
+            });
+        }, {
+            root: null, // viewport
+            threshold: 0.5 // 50% visible
+        });
+
+        // Observe all unread messages from others
+        document.querySelectorAll('.message-item').forEach((el) => {
+            const senderId = Number(el.getAttribute('data-sender-id'));
+            if (senderId !== user?.id) {
+                observer.current?.observe(el);
+            }
+        });
+
+        return () => {
+            if (observer.current) observer.current.disconnect();
+        };
+    }, [messages, markAsRead, roomId, user?.id]);
 
     const handleSend = async () => {
         if (!inputValue.trim()) return;
@@ -283,7 +325,9 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                             })()}
 
                             <div
-                                className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${!isSequence ? 'mt-4' : 'mt-1'} group animate-fade-in`}
+                                className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${!isSequence ? 'mt-4' : 'mt-1'} group animate-fade-in message-item`}
+                                data-msg-id={msg.id}
+                                data-sender-id={msg.sender_id}
                             >
                                 {!isOwn && !isSequence && (
                                     <div className="w-8 h-8 rounded-full bg-surface-hover border border-white/5 flex items-center justify-center text-xs font-semibold text-txt-secondary mr-2 mt-0.5 shadow-sm transform transition-transform group-hover:scale-105">
@@ -336,6 +380,21 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                                         <div className={`text-[10px] mt-1 text-right ${isOwn ? 'text-white/60' : 'text-txt-tertiary'} flex items-center justify-end gap-1.5`}>
                                             <span className="opacity-80">{formatTime(msg.created_at)}</span>
                                             {msg.is_edited && <span className="italic opacity-60">(edited)</span>}
+
+                                            {isOwn && (
+                                                <div className="flex items-center">
+                                                    {msg.read_receipts && msg.read_receipts.some((r: any) => r.user_id !== user?.id) ? (
+                                                        // Read by someone (Blue Double Check)
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L7 17l-5-5" /><path d="m22 10-7.5 7.5L13 16" /></svg>
+                                                    ) : msg.status === 'synced' ? (
+                                                        // Delivered (Grey Double Check) - using lighter white/80 due to dark bg
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80"><path d="M18 6L7 17l-5-5" /><path d="m22 10-7.5 7.5L13 16" /></svg>
+                                                    ) : (
+                                                        // Sent/Pending (Single Check)
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60"><polyline points="20 6 9 17 4 12" /></svg>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             {isOwn && (
                                                 <button

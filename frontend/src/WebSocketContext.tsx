@@ -89,7 +89,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             });
 
             // 5. Update local DB with result
-            // 5. Update local DB with result
             await db.transaction('rw', db.messages, async () => {
                 // Process newly synced messages (our own messages that were pending)
                 // The server returns them with their real IDs and timestamps
@@ -105,7 +104,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             updated_at: new Date(msg.created_at),
                             is_deleted: false,
                             status: 'synced',
-                            attachments: msg.attachments || []
+                            attachments: msg.attachments || [],
+                            read_receipts: msg.read_receipts || []
                         });
                     }
                 }
@@ -122,14 +122,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         updated_at: new Date(msg.created_at),
                         is_deleted: false,
                         status: 'synced',
-                        attachments: msg.attachments || []
+                        attachments: msg.attachments || [],
+                        read_receipts: msg.read_receipts || []
                     });
                 }
 
                 // Clean up pending that were synced
-                // We delete the 'pending' versions because we just upserted the 'synced' versions (with real IDs) above.
-                // Note: If temp_id matches, we could try to map, but since we are inserting new rows with real IDs,
-                // we just need to remove the old pending rows.
                 if (offlineMessages.length > 0) {
                     const tempIds = offlineMessages.map(m => m.temp_id).filter(id => id !== undefined);
                     if (tempIds.length > 0) {
@@ -198,7 +196,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                                 updated_at: new Date(msg.created_at),
                                 is_deleted: false,
                                 status: 'synced',
-                                attachments: msg.attachments || []
+                                attachments: msg.attachments || [],
+                                read_receipts: msg.read_receipts || []
                             });
                         });
                         setLastUpdate(Date.now());
@@ -246,6 +245,21 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                                     body: `${data.friend.username} accepted your friend request`,
                                     icon: '/pwa-192x192.png'
                                 });
+                            }
+                        }
+                    } else if (data.type === 'message_read') {
+                        const { message_id, user_id, read_at } = data;
+                        const existing = await db.messages.get(message_id);
+                        if (existing) {
+                            const newReceipt = { id: Date.now(), message_id, user_id, read_at };
+                            const receipts = existing.read_receipts || [];
+                            // Avoid duplicates
+                            if (!receipts.find((r: any) => r.user_id === user_id)) {
+                                await db.messages.put({
+                                    ...existing,
+                                    read_receipts: [...receipts, newReceipt]
+                                });
+                                setLastUpdate(Date.now());
                             }
                         }
                     }

@@ -86,6 +86,8 @@ class ConnectionManager:
         
         if task_type == "message":
             await self._process_chat_message(payload, user_id, task, db, connection_id)
+        elif task_type == "read_receipt":
+            await self._process_read_receipt(payload, user_id, db)
         elif task_type == "signal":
              await self._process_signal(payload, user_id, db, connection_id)
 
@@ -155,6 +157,39 @@ class ConnectionManager:
         # 4. Push Notification
         asyncio.create_task(self._send_push_async(room_id, user_id, content, task_meta, db))
 
+    async def _process_read_receipt(self, data: dict, user_id: int, db: Session):
+        """
+        Processes a read receipt event.
+        """
+        message_id = int(data.get("message_id"))
+        room_id = int(data.get("room_id"))
+        
+        # 1. Idempotency Check & Validation
+        existing = db.query(ReadReceipt).filter(
+            ReadReceipt.message_id == message_id,
+            ReadReceipt.user_id == user_id
+        ).first()
+        
+        if existing:
+            return
+            
+        # 2. Save to DB
+        receipt = ReadReceipt(message_id=message_id, user_id=user_id)
+        db.add(receipt)
+        db.commit()
+        
+        # 3. Broadcast to room
+        # We broadcast to everyone so they can update their UI (e.g. sender sees blue ticks)
+        response = {
+            "type": "message_read",
+            "message_id": message_id,
+            "room_id": room_id,
+            "user_id": user_id, 
+            "read_at": datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+        }
+        
+        await self.broadcast_to_room(room_id, response)
+
     async def _send_push_async(self, room_id, sender_id, content, sender_meta, db_session_unused):
         notify_db = SessionLocal()
         try:
@@ -178,7 +213,7 @@ class ConnectionManager:
                              member.user_id, 
                              title, 
                              content[:100] if content else "Sent a file", 
-                             "/"
+                             f"/?room={room_id}"
                          )
         except Exception as e:
             print(f"Push error: {e}")
@@ -421,6 +456,13 @@ async def websocket_chat(websocket: WebSocket, token: str):
             if message_type == "message":
                 if "room_id" in data and "content" in data:
                     await manager.enqueue_message("message", data, user, conn_id)
+
+            elif message_type == "read_receipt":
+                if "message_id" in data and "room_id" in data:
+                    # Low priority, maybe we don't need queue for this? 
+                    # Actually, we should queue it to prevent DB locking issues under load.
+                    # We reuse same queue method but handle as "read_receipt" type
+                    await manager.enqueue_message("read_receipt", data, user, conn_id)
             
             elif message_type in ["call_offer", "call_answer", "call_reject", "call_end", "ice_candidate"]:
                 await manager.enqueue_message("signal", data, user, conn_id)

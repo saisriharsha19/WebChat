@@ -35,6 +35,13 @@ export interface FileAttachment {
     uploaded_at: string;
 }
 
+export interface ReadReceipt {
+    id: number;
+    message_id: number;
+    user_id: number;
+    read_at: string;
+}
+
 export interface Message {
     id: number;
     content?: string;
@@ -46,6 +53,7 @@ export interface Message {
     is_deleted: boolean;
     is_edited: boolean;
     attachments: FileAttachment[];
+    read_receipts: ReadReceipt[];
     sender: User;
 }
 

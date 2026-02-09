@@ -130,13 +130,8 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
-    if (event.action === 'mark_read') {
-        // Handle "Mark as Read" action (background)
-        // We might need to communicate with the main thread or hit an API
-        // For now, we'll just focus the window, but ideally we'd hit the API here
-        // const messageId = event.notification.data.message_id;
-        // ... fetch(`/api/messages/${messageId}/read`, { method: 'POST' }) ...
-    }
+    // Both 'open' and 'mark_read' will open the app for now
+    // Since we need auth context to mark as read reliably
 
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
@@ -149,7 +144,7 @@ self.addEventListener('notificationclick', (event) => {
                 if (client.url.startsWith(self.location.origin) && 'focus' in client) {
                     return client.focus().then((focusedClient) => {
                         // Navigate the focused client to the notification URL
-                        if (focusedClient && 'navigate' in focusedClient && focusedClient.url !== urlToOpen) {
+                        if (focusedClient && 'navigate' in focusedClient) {
                             return focusedClient.navigate(urlToOpen);
                         }
                         return focusedClient;
