@@ -70,12 +70,34 @@ export function VoiceCallModal() {
 
     // Handle Ringtone
     useEffect(() => {
-        if (callState.status === 'incoming') {
-            ringtoneRef.current?.play().catch(e => console.log("Ringtone play error", e));
-        } else {
-            ringtoneRef.current?.pause();
-            if (ringtoneRef.current) ringtoneRef.current.currentTime = 0;
-        }
+        const handleRingtone = async () => {
+            if (callState.status === 'incoming') {
+                if (ringtoneRef.current) {
+                    try {
+                        ringtoneRef.current.volume = 1.0;
+                        ringtoneRef.current.currentTime = 0;
+                        await ringtoneRef.current.play();
+                        console.log("Ringtone started playing");
+                    } catch (e) {
+                        console.error("Failed to play ringtone:", e);
+                    }
+                }
+            } else {
+                if (ringtoneRef.current) {
+                    ringtoneRef.current.pause();
+                    ringtoneRef.current.currentTime = 0;
+                }
+            }
+        };
+
+        handleRingtone();
+
+        return () => {
+            if (ringtoneRef.current) {
+                ringtoneRef.current.pause();
+                ringtoneRef.current.currentTime = 0;
+            }
+        };
     }, [callState.status]);
 
     if (callState.status === 'idle') return null;

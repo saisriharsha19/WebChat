@@ -96,6 +96,20 @@ registerRoute(
     })
 );
 
+// Media (Audio/Video) - Cache First (since ringtone doesn't change)
+registerRoute(
+    ({ request }) => request.destination === 'audio' || request.destination === 'video',
+    new CacheFirst({
+        cacheName: 'media',
+        plugins: [
+            new ExpirationPlugin({
+                maxEntries: 20,
+                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
+            }),
+        ],
+    })
+);
+
 // ---------------------------------------------------------------------------
 // 3. Push Notifications
 // ---------------------------------------------------------------------------
