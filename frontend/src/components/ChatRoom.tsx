@@ -7,6 +7,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { FileUploader } from './FileUploader';
 import { fetchWithAuth, API_ENDPOINTS, API_URL } from '../lib/api';
 
+import { getRoomName } from '../lib/roomUtils';
+
 interface ChatRoomProps {
     roomId: string;
     onBack?: () => void;
@@ -193,7 +195,9 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                             #
                         </div>
                         <div>
-                            <div className="font-semibold text-[15px] leading-tight">Room {roomId}</div>
+                            <div className="font-semibold text-[15px] leading-tight">
+                                {getRoomName(roomDetails, user?.id) || `Room ${roomId}`}
+                            </div>
                             <div className="text-[11px] text-txt-tertiary flex items-center gap-1.5">
                                 <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]' : 'bg-red-500'}`} />
                                 {isConnected ? 'Online' : 'Connecting...'}

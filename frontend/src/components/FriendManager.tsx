@@ -189,7 +189,7 @@ export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds 
                             <div key={req.id} className="p-3 bg-surface-hover/50 border border-border rounded-lg flex items-center justify-between">
                                 <div className="text-sm font-medium text-txt-primary">
                                     <span className="text-txt-secondary text-xs block mb-0.5">Incoming Request</span>
-                                    User #{req.sender_id}
+                                    {req.sender?.display_name || req.sender?.username || 'Unknown User'}
                                 </div>
                                 <div className="flex gap-2">
                                     <button

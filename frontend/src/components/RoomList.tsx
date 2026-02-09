@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import { Room } from '../types';
+import { getRoomName } from '../lib/roomUtils';
 
 interface RoomListProps {
     currentRoomId: string | null;
@@ -32,21 +33,6 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
     const groups = rooms.filter(r => r.type === 'group');
 
     const { user } = useAuth(); // Need to access current user to filter
-
-    const getDMName = (room: Room) => {
-        if (!room.members || room.members.length === 0) return 'Unknown';
-
-        // Filter out self
-        const others = room.members.filter(m => m.user_id !== user?.id);
-
-        if (others.length === 0) {
-            // Self-dm or logic error, fallback to first member
-            const m = room.members[0];
-            return `${m.user.display_name || m.user.username} (You)`;
-        }
-
-        return others.map(m => m.user.display_name || m.user.username).join(', ');
-    };
 
     return (
         <div className="flex flex-col h-full overflow-y-auto px-2 py-3 space-y-5">
@@ -110,7 +96,7 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
                         <div className="relative">
                             <div className={`w-2.5 h-2.5 rounded-full shadow-sm ${currentRoomId === room.id ? 'bg-white' : 'bg-[#22c55e] shadow-[0_0_4px_rgba(34,197,94,0.4)]'}`}></div>
                         </div>
-                        <span className="truncate flex-1">{getDMName(room)}</span>
+                        <span className="truncate flex-1">{getRoomName(room, user?.id)}</span>
                     </button>
                 ))}
             </div>
