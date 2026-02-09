@@ -6,7 +6,22 @@ import os
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./webchat.db")
+from urllib.parse import quote_plus
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Prioritize constructing URL from components if available
+db_user = os.getenv("DB_USER")
+db_password = os.getenv("DB_PASSWORD")
+db_host = os.getenv("DB_HOST")
+db_port = os.getenv("DB_PORT", "5432")
+db_name = os.getenv("DB_NAME", "postgres")
+
+if db_user and db_password and db_host:
+    encoded_password = quote_plus(db_password)
+    DATABASE_URL = f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
+elif not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./webchat.db"
 
 # Fix dialect for SQLAlchemy (postgres:// -> postgresql://)
 if DATABASE_URL.startswith("postgres://"):
