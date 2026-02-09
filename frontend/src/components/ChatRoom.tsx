@@ -454,7 +454,6 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                                 handleSend();
                             }
                         }}
-                        placeholder={`Message #${roomId}`}
                         className="w-full bg-transparent border-none text-base text-txt-primary px-4 py-3 pb-10 focus:ring-0 focus:outline-none rounded-2xl resize-none min-h-[56px] max-h-[160px] leading-relaxed placeholder:text-txt-tertiary"
                         rows={1}
                     />
