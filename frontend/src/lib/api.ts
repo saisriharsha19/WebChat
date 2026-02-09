@@ -52,6 +52,7 @@ export const API_ENDPOINTS = {
     // Notifications
     vapidKey: `${API_URL}/notifications/vapid-public-key`,
     subscribePush: `${API_URL}/notifications/subscribe`,
+    testNotification: `${API_URL}/notifications/test`,
 };
 
 export interface ApiError {

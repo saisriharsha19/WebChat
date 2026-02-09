@@ -55,6 +55,12 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         }
     }, [roomId, roomDetails]);
 
+    // Lazy Loading State
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [initialLoadDone, setInitialLoadDone] = useState(false);
+
     // Live query from IndexedDB
     const rawMessages = useLiveQuery(
         () =>
@@ -64,6 +70,59 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                 .sortBy('created_at'),
         [roomId, lastUpdate]
     );
+
+    // Fetch messages from API
+    const fetchMessages = async (skip: number) => {
+        try {
+            setIsLoadingMore(true);
+            const res = await fetchWithAuth(API_ENDPOINTS.getMessages(roomId, skip, 50));
+            if (Array.isArray(res)) {
+                if (res.length < 50) setHasMore(false);
+                if (res.length > 0) {
+                    await db.messages.bulkPut(res);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch messages:", error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    // Initial Load - Fetch if local is empty or small
+    useEffect(() => {
+        if (roomId && !initialLoadDone) {
+            // Check local count without loading everything first? 
+            // We have rawMessages from liveQuery. 
+            // If rawMessages is empty, definitely fetch.
+            // If we assume verify logic, let's just fetch latest 50 on mount to be sure we are synced.
+            fetchMessages(0).then(() => setInitialLoadDone(true));
+        }
+    }, [roomId, initialLoadDone]);
+
+    // Scroll Handler
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const { scrollTop } = e.currentTarget;
+        if (scrollTop === 0 && hasMore && !isLoadingMore && (rawMessages?.length || 0) >= 50) {
+            // Save scroll height to maintain position
+            const container = e.currentTarget;
+            const oldHeight = container.scrollHeight;
+
+            fetchMessages(rawMessages?.length || 0).then(() => {
+                // Restore scroll position
+                // We need to wait for UI update (LiveQuery).
+                // Actually LiveQuery is async. This might jump. 
+                // A better detail is needed here but let's start with basic fetch.
+                // To prevent jump, we usually use useLayoutEffect or ResizeObserver, 
+                // but just fetching is the core requirement.
+                // Let's rely on React's reconciliation or user manual scroll for now for MVP.
+                requestAnimationFrame(() => {
+                    const newHeight = container.scrollHeight;
+                    container.scrollTop = newHeight - oldHeight;
+                });
+            });
+        }
+    };
 
     // Hydrate messages with sender details from room members
     const messages = useMemo(() => {
@@ -304,8 +363,18 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
             </div>
 
             {/* Messages Area - Added top padding for header */}
-            <div className="flex-1 overflow-y-auto saas-scrollbar flex flex-col px-4 pt-[70px] pb-4 space-y-6 scroll-smooth">
+            <div
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto saas-scrollbar flex flex-col px-4 pt-[70px] pb-4 space-y-6 scroll-smooth"
+            >
                 <div className="flex-1" />
+
+                {isLoadingMore && (
+                    <div className="flex justify-center py-2">
+                        <div className="w-5 h-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+                    </div>
+                )}
 
                 {messages?.map((msg: any, i: number) => {
                     const isOwn = msg.sender_id === user?.id;

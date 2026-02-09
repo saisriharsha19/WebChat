@@ -88,7 +88,7 @@ export default function Dashboard() {
                     <button
                         onClick={async () => {
                             try {
-                                await fetchWithAuth('/notifications/test', { method: 'POST' });
+                                await fetchWithAuth(API_ENDPOINTS.testNotification, { method: 'POST' });
                                 alert('Test notification sent! Check your system tray.');
                             } catch (e) {
                                 alert('Failed to send test notification');
