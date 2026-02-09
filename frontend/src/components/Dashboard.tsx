@@ -73,7 +73,7 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {permission === 'default' && !isSubscribed && (
+            {permission === 'default' && !isSubscribed ? (
                 <div className="px-3 pb-3 bg-surface-sidebar border-t border-transparent">
                     <button
                         onClick={subscribeToPush}
@@ -83,7 +83,26 @@ export default function Dashboard() {
                         Enable Notifications
                     </button>
                 </div>
-            )}
+            ) : isSubscribed ? (
+                <div className="px-3 pb-3 bg-surface-sidebar border-t border-transparent">
+                    <button
+                        onClick={async () => {
+                            try {
+                                await fetchWithAuth('/notifications/test', { method: 'POST' });
+                                alert('Test notification sent! Check your system tray.');
+                            } catch (e) {
+                                alert('Failed to send test notification');
+                                console.error(e);
+                            }
+                        }}
+                        className="w-full py-2 px-3 bg-surface-hover hover:bg-white/5 text-txt-secondary text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                        title="Send a test push notification to this device"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"></path></svg>
+                        Test Notification
+                    </button>
+                </div>
+            ) : null}
         </>
     );
 
