@@ -2,9 +2,9 @@ import { useState, useRef } from 'react';
 import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 
 interface FileUploaderProps {
-    roomId: number;
+    roomId: string;
     onUploadStart?: () => void;
-    onUploadComplete?: (fileId: number) => void;
+    onUploadComplete?: (fileId: string) => void;
     onUploadError?: (error: string) => void;
 }
 

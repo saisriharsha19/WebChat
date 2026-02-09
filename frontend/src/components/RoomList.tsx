@@ -4,8 +4,8 @@ import { useAuth } from '../AuthContext';
 import { Room } from '../types';
 
 interface RoomListProps {
-    currentRoomId: number | null;
-    onSelectRoom: (roomId: number) => void;
+    currentRoomId: string | null;
+    onSelectRoom: (roomId: string) => void;
     onNewDM: () => void;
     onNewGroup: () => void;
 }
@@ -37,7 +37,7 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
         if (!room.members || room.members.length === 0) return 'Unknown';
 
         // Filter out self
-        const others = room.members.filter(m => Number(m.user_id) !== Number(user?.id));
+        const others = room.members.filter(m => m.user_id !== user?.id);
 
         if (others.length === 0) {
             // Self-dm or logic error, fallback to first member

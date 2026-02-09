@@ -17,10 +17,10 @@ class ConnectionManager:
         # Maps user_id to list of websocket connections
         # We need to track connection IDs now. 
         # Structure: {user_id: {conn_id: WebSocket}}
-        self.active_connections: Dict[int, Dict[str, WebSocket]] = {}
+        self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
         
-        # Maps room_id (int) to set of user_ids (for quick lookup of who is online in a room)
-        self.room_subscribers: Dict[int, Set[int]] = {}
+        # Maps room_id (str) to set of user_ids (for quick lookup of who is online in a room)
+        self.room_subscribers: Dict[str, Set[str]] = {}
         
         # QUEUE SYSTEM
         self.queue: asyncio.Queue = asyncio.Queue()
@@ -91,8 +91,8 @@ class ConnectionManager:
         elif task_type == "signal":
              await self._process_signal(payload, user_id, db, connection_id)
 
-    async def _process_chat_message(self, data: dict, user_id: int, task_meta: dict, db: Session, sender_conn_id: str):
-        room_id = int(data.get("room_id"))
+    async def _process_chat_message(self, data: dict, user_id: str, task_meta: dict, db: Session, sender_conn_id: str):
+        room_id = data.get("room_id")
         content = data.get("content")
         correlation_id = data.get("correlation_id") 
         
@@ -157,12 +157,12 @@ class ConnectionManager:
         # 4. Push Notification
         asyncio.create_task(self._send_push_async(room_id, user_id, content, task_meta, db))
 
-    async def _process_read_receipt(self, data: dict, user_id: int, db: Session):
+    async def _process_read_receipt(self, data: dict, user_id: str, db: Session):
         """
         Processes a read receipt event.
         """
-        message_id = int(data.get("message_id"))
-        room_id = int(data.get("room_id"))
+        message_id = data.get("message_id")
+        room_id = data.get("room_id")
         
         # 1. Idempotency Check & Validation
         existing = db.query(ReadReceipt).filter(
@@ -213,14 +213,19 @@ class ConnectionManager:
                              member.user_id, 
                              title, 
                              content[:100] if content else "Sent a file", 
-                             f"/?room={room_id}"
+                             url=f"/?room={room_id}",
+                             extra_data={
+                                 "type": "message",
+                                 "room_id": room_id,
+                                 "sender_id": sender_id
+                             }
                          )
         except Exception as e:
             print(f"Push error: {e}")
         finally:
             notify_db.close()
 
-    async def _process_signal(self, data: dict, user_id: int, db: Session, sender_conn_id: str):
+    async def _process_signal(self, data: dict, user_id: str, db: Session, sender_conn_id: str):
         target_id = data.get("target_user_id")
         if not target_id: return
             
@@ -260,7 +265,43 @@ class ConnectionManager:
         elif msg_type == "call_end":
             payload["type"] = "call_ended" # Restore original behavior
             
+        # Send to target user via WebSocket if online
         await self.send_to_user(target_id, payload)
+
+        # TRIGGER PUSH NOTIFICATION FOR CALLS (Critical for background/screen-off)
+        if msg_type == "call_offer":
+             # We fire-and-forget the push notification 
+             async def notify_call():
+                 push_db = SessionLocal()
+                 try:
+                     # Check if user is actually connected/online? 
+                     # Even if they are "online" in DB, better to send push if they might be backgrounded.
+                     # But to avoid double-notify, maybe check if they have active WS connections?
+                     # Ideally, the SW handles the "is app open" check, so we just SEND.
+                     
+                     sender = push_db.query(User).filter(User.id == user_id).first()
+                     sender_name = sender.display_name or sender.username if sender else "Someone"
+                     
+                     from utils.push_service import send_push_notification
+                     send_push_notification(
+                         push_db,
+                         target_id,
+                         title="Incoming Call",
+                         body=f"{sender_name} is calling you...",
+                         url=f"/", # SW will handle the 'focus' and 'navigate'
+                         extra_data={
+                             "type": "call",
+                             "call_id": data.get("call_id"),
+                             "room_id": data.get("room_id", ""), # Might not be in signal, strictly speaking signaling acts on users, but usually we have context
+                             "sender_name": sender_name
+                         }
+                     )
+                 except Exception as e:
+                     print(f"Failed to send call push: {e}")
+                 finally:
+                     push_db.close()
+             
+             asyncio.create_task(notify_call())
         
         # Handle "handled elsewhere" logic
         if msg_type in ["call_answer", "call_reject", "call_end"]:
@@ -278,7 +319,7 @@ class ConnectionManager:
 
     # --- Revised Connection Methods ---
     
-    async def connect(self, websocket: WebSocket, user_id: int) -> str:
+    async def connect(self, websocket: WebSocket, user_id: str) -> str:
         await websocket.accept()
         conn_id = str(uuid.uuid4())
         
@@ -288,7 +329,7 @@ class ConnectionManager:
         self.active_connections[user_id][conn_id] = websocket
         return conn_id
     
-    def disconnect(self, conn_id: str, user_id: int):
+    def disconnect(self, conn_id: str, user_id: str):
         if user_id in self.active_connections:
             if conn_id in self.active_connections[user_id]:
                 del self.active_connections[user_id][conn_id]
@@ -305,16 +346,16 @@ class ConnectionManager:
                      if not self.room_subscribers[room_id]:
                          del self.room_subscribers[room_id]
     
-    def join_room(self, room_id: int, user_id: int):
+    def join_room(self, room_id: str, user_id: str):
         if room_id not in self.room_subscribers:
             self.room_subscribers[room_id] = set()
         self.room_subscribers[room_id].add(user_id)
     
-    def leave_room(self, room_id: int, user_id: int):
+    def leave_room(self, room_id: str, user_id: str):
         if room_id in self.room_subscribers:
             self.room_subscribers[room_id].discard(user_id)
     
-    async def send_to_user(self, user_id: int, message: dict):
+    async def send_to_user(self, user_id: str, message: dict):
         # Broadcast to all connections of user
         if user_id in self.active_connections:
             for ws in list(self.active_connections[user_id].values()):
@@ -323,14 +364,14 @@ class ConnectionManager:
                 except:
                     pass
 
-    async def send_to_connection(self, user_id: int, conn_id: str, message: dict):
+    async def send_to_connection(self, user_id: str, conn_id: str, message: dict):
         if user_id in self.active_connections and conn_id in self.active_connections[user_id]:
             try:
                 await self.active_connections[user_id][conn_id].send_json(message)
             except:
                 pass
 
-    async def send_to_user_except(self, user_id: int, message: dict, exclude_conn_id: str):
+    async def send_to_user_except(self, user_id: str, message: dict, exclude_conn_id: str):
         if user_id in self.active_connections:
             for c_id, ws in list(self.active_connections[user_id].items()):
                 if c_id == exclude_conn_id:
@@ -340,14 +381,14 @@ class ConnectionManager:
                 except:
                     pass
     
-    async def broadcast_to_room(self, room_id: int, message: dict, exclude_user_id: int = None):
+    async def broadcast_to_room(self, room_id: str, message: dict, exclude_user_id: str = None):
         if room_id in self.room_subscribers:
             for user_id in list(self.room_subscribers[room_id]):
                 if exclude_user_id and user_id == exclude_user_id:
                     continue
                 await self.send_to_user(user_id, message)
                 
-    async def notify_friends_status(self, user_id: int, status: str, db: Session):
+    async def notify_friends_status(self, user_id: str, status: str, db: Session):
          from models import FriendRequest, FriendRequestStatus
          from sqlalchemy import or_, and_
         
@@ -468,7 +509,7 @@ async def websocket_chat(websocket: WebSocket, token: str):
                 await manager.enqueue_message("signal", data, user, conn_id)
                 
             elif message_type == "join_room":
-                room_id = int(data.get("room_id"))
+                room_id = data.get("room_id")
                 def check_perm():
                      return db.query(RoomMember).filter(RoomMember.room_id==room_id, RoomMember.user_id==user.id).first()
                 if await asyncio.to_thread(check_perm):
@@ -478,7 +519,7 @@ async def websocket_chat(websocket: WebSocket, token: str):
                      await websocket.send_json({"type": "error", "message": "Access denied"})
 
             elif message_type == "leave_room":
-                manager.leave_room(int(data.get("room_id")), user.id)
+                manager.leave_room(data.get("room_id"), user.id)
 
     except WebSocketDisconnect:
         if user and conn_id:

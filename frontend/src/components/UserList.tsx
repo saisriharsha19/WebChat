@@ -3,8 +3,8 @@ import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 import { User } from '../types';
 
 interface UserListProps {
-    onSelectUser: (userId: number) => void;
-    selectedUserIds?: number[];
+    onSelectUser: (userId: string) => void;
+    selectedUserIds?: string[];
 }
 
 export function UserList({ onSelectUser, selectedUserIds = [] }: UserListProps) {

@@ -14,7 +14,7 @@ VAPID_MAILTO = os.getenv("VAPID_MAILTO")
 # pywebpush needs private_key path or string.
 # Also needs "vapid_claims" usually containing "sub": mailto.
 
-def send_push_notification(db: Session, user_id: int, title: str, body: str, url: str = "/"):
+def send_push_notification(db: Session, user_id: int, title: str, body: str, url: str = "/", extra_data: dict = {}):
     """
     Sends a push notification to all subscriptions for a given user.
     """
@@ -27,12 +27,21 @@ def send_push_notification(db: Session, user_id: int, title: str, body: str, url
     if not subscriptions:
         return
 
-    payload = json.dumps({
+    vapid_claims = {
+        "sub": VAPID_MAILTO
+    }
+    
+    # Construct payload
+    # We default to a simple message notification structure if not provided
+    notification_data = {
         "title": title,
         "body": body,
-        "url": url,
-        "icon": "/entropy.svg"
-    })
+        "icon": "/entropy.svg",
+        "url": url, # Keep for backward compatibility/simplicity
+        **extra_data # Merge any extra data (e.g. type='call', room_id, call_id)
+    }
+
+    payload = json.dumps(notification_data)
 
     for sub in subscriptions:
         try:
@@ -46,11 +55,9 @@ def send_push_notification(db: Session, user_id: int, title: str, body: str, url
                 },
                 data=payload,
                 vapid_private_key=VAPID_PRIVATE_KEY,
-                vapid_claims={
-                    "sub": VAPID_MAILTO
-                },
+                vapid_claims=vapid_claims,
                 headers={
-                    "urgency": "high"
+                    "urgency": "high" # High urgency is critical for calls
                 }
             )
         except WebPushException as ex:

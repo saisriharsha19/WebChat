@@ -11,15 +11,15 @@ type WSMessage = {
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 interface WebSocketContextType {
-    sendMessage: (roomId: number, content: string, correlationId?: string) => Promise<void>;
-    joinRoom: (roomId: number) => void;
-    leaveRoom: (roomId: number) => void;
-    markAsRead: (messageId: number, roomId: number) => void;
+    sendMessage: (roomId: string, content: string, correlationId?: string) => Promise<void>;
+    joinRoom: (roomId: string) => void;
+    leaveRoom: (roomId: string) => void;
+    markAsRead: (messageId: string, roomId: string) => void;
     isConnected: boolean;
     connectionStatus: ConnectionStatus;
     lastUpdate: number;
     lastFriendUpdate: number;
-    onlineUsers: Map<number, string>;
+    onlineUsers: Map<string, string>;
 
     // Signaling for other contexts (like CallContext)
     sendSignal: (message: any) => void;
@@ -37,7 +37,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const reconnectTimeoutRef = useRef<number | null>(null);
     const reconnectAttemptsRef = useRef(0);
     const pingIntervalRef = useRef<number | null>(null);
-    const [onlineUsers, setOnlineUsers] = useState<Map<number, string>>(new Map());
+    const [onlineUsers, setOnlineUsers] = useState<Map<string, string>>(new Map());
 
     // Signal handlers registry
     const signalHandlersRef = useRef<Set<(data: any) => void>>(new Set());
@@ -98,7 +98,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                             id: msg.id,
                             content: msg.content,
                             sender_id: msg.sender_id,
-                            room_id: parseInt(msg.room_id),
+                            room_id: msg.room_id,
                             message_type: msg.message_type || 'text',
                             created_at: new Date(msg.created_at),
                             updated_at: new Date(msg.created_at),
@@ -116,7 +116,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         id: msg.id,
                         content: msg.content,
                         sender_id: msg.sender_id,
-                        room_id: parseInt(msg.room_id),
+                        room_id: msg.room_id,
                         message_type: msg.message_type || 'text',
                         created_at: new Date(msg.created_at),
                         updated_at: new Date(msg.created_at),
@@ -190,7 +190,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                                 id: msg.id,
                                 content: msg.content,
                                 sender_id: msg.sender_id,
-                                room_id: parseInt(msg.room_id),
+                                room_id: msg.room_id,
                                 message_type: msg.message_type || 'text',
                                 created_at: new Date(msg.created_at),
                                 updated_at: new Date(msg.created_at),
@@ -251,7 +251,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         const { message_id, user_id, read_at } = data;
                         const existing = await db.messages.get(message_id);
                         if (existing) {
-                            const newReceipt = { id: Date.now(), message_id, user_id, read_at };
+                            const newReceipt = { id: `rr-${Date.now()}-${Math.random()}`, message_id, user_id, read_at };
                             const receipts = existing.read_receipts || [];
                             // Avoid duplicates
                             if (!receipts.find((r: any) => r.user_id === user_id)) {
@@ -325,7 +325,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener('focus', handleFocus);
     }, [token, user, lastUpdate]); // Dependencies matter for connect/syncMessages access
 
-    const sendMessage = async (roomId: number, content: string, correlationId?: string) => {
+    const sendMessage = async (roomId: string, content: string, correlationId?: string) => {
         const cid = correlationId || `msg-${Date.now()}-${Math.random()}`;
         const timestamp = new Date();
 
@@ -368,7 +368,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const joinRoom = (roomId: number) => {
+    const joinRoom = (roomId: string) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'join_room',
@@ -377,7 +377,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const leaveRoom = (roomId: number) => {
+    const leaveRoom = (roomId: string) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'leave_room',
@@ -386,7 +386,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const markAsRead = (messageId: number, roomId: number) => {
+    const markAsRead = (messageId: string, roomId: string) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'read_receipt',

@@ -11,7 +11,7 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 @router.post("/dm", response_model=RoomResponse)
 async def create_dm_room(
-    target_user_id: int,
+    target_user_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -101,7 +101,7 @@ async def get_my_rooms(
 
 @router.get("/{room_id}", response_model=RoomResponse)
 async def get_room_details(
-    room_id: int,
+    room_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -121,7 +121,7 @@ async def get_room_details(
 
 @router.post("/{room_id}/leave")
 async def leave_room(
-    room_id: int,
+    room_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -145,7 +145,7 @@ async def leave_room(
 
 @router.delete("/{room_id}")
 async def delete_room(
-    room_id: int,
+    room_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

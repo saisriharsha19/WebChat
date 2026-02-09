@@ -35,7 +35,7 @@ class UserBase(BaseModel):
     theme_preference: str = "dark"
 
 class UserResponse(UserBase):
-    id: int
+    id: str
     is_active: bool
     created_at: datetime
     last_seen: datetime
@@ -50,7 +50,7 @@ class UserProfileUpdate(BaseModel):
 
 # Room Schemas
 class RoomMemberResponse(BaseModel):
-    user_id: int
+    user_id: str
     role: str
     joined_at: datetime
     user: UserResponse
@@ -60,21 +60,21 @@ class RoomMemberResponse(BaseModel):
 class RoomCreate(BaseModel):
     name: Optional[str] = None
     type: RoomType = RoomType.DIRECT
-    member_ids: List[int] = [] # Initial members
+    member_ids: List[str] = [] # Initial members
 
 class RoomResponse(BaseModel):
-    id: int
+    id: str
     name: Optional[str] = None
     type: RoomType
     created_at: datetime
-    created_by: Optional[int] = None
+    created_by: Optional[str] = None
     members: List[RoomMemberResponse] = []
     
     model_config = ConfigDict(from_attributes=True)
 
 # File Schemas
 class FileAttachmentResponse(BaseModel):
-    id: int
+    id: str
     filename: str
     file_path: str
     file_size: int
@@ -86,18 +86,18 @@ class FileAttachmentResponse(BaseModel):
 # Message Schemas
 class MessageCreate(BaseModel):
     content: Optional[str] = None
-    room_id: int
+    room_id: str
     message_type: str = "text"
-    file_id: Optional[int] = None # If attaching a file
+    file_id: Optional[str] = None # If attaching a file
 
 class MessageUpdate(BaseModel):
     content: str
 
 class MessageResponse(BaseModel):
-    id: int
+    id: str
     content: Optional[str] = None
-    sender_id: int
-    room_id: int
+    sender_id: str
+    room_id: str
     message_type: str
     created_at: datetime
     updated_at: datetime
@@ -113,12 +113,12 @@ class MessageWithSender(MessageResponse):
 
 # Read Receipt Schemas
 class ReadReceiptCreate(BaseModel):
-    message_id: int
+    message_id: str
 
 class ReadReceiptResponse(BaseModel):
-    id: int
-    message_id: int
-    user_id: int
+    id: str
+    message_id: str
+    user_id: str
     read_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
@@ -126,7 +126,7 @@ class ReadReceiptResponse(BaseModel):
 # Sync Schemas
 class SyncMessage(BaseModel):
     content: Optional[str]
-    room_id: int
+    room_id: str
     message_type: str = "text"
     client_timestamp: datetime
     temp_id: str
@@ -146,12 +146,12 @@ class FriendRequestStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 class FriendRequestCreate(BaseModel):
-    receiver_id: int
+    receiver_id: str
 
 class FriendRequestResponse(BaseModel):
-    id: int
-    sender_id: int
-    receiver_id: int
+    id: str
+    sender_id: str
+    receiver_id: str
     status: FriendRequestStatus
     created_at: datetime
     

@@ -8,7 +8,7 @@ import { FileUploader } from './FileUploader';
 import { fetchWithAuth, API_ENDPOINTS, API_URL } from '../lib/api';
 
 interface ChatRoomProps {
-    roomId: number;
+    roomId: string;
     onBack?: () => void;
 }
 
@@ -17,7 +17,7 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
     const { startCall } = useCall();
     const { user } = useAuth();
     const [inputValue, setInputValue] = useState('');
-    const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false);
     const groupMenuRef = useRef<HTMLDivElement>(null);
@@ -81,8 +81,8 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         observer.current = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
                 if (entry.isIntersecting) {
-                    const msgId = Number(entry.target.getAttribute('data-msg-id'));
-                    const senderId = Number(entry.target.getAttribute('data-sender-id'));
+                    const msgId = entry.target.getAttribute('data-msg-id');
+                    const senderId = entry.target.getAttribute('data-sender-id');
 
                     // Only mark read if it's not my message
                     if (msgId && senderId && senderId !== user?.id) {
@@ -106,8 +106,8 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
 
         // Observe all unread messages from others
         document.querySelectorAll('.message-item').forEach((el) => {
-            const senderId = Number(el.getAttribute('data-sender-id'));
-            if (senderId !== user?.id) {
+            const senderId = el.getAttribute('data-sender-id');
+            if (senderId && senderId !== user?.id) {
                 observer.current?.observe(el);
             }
         });
@@ -117,6 +117,7 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         };
     }, [messages, markAsRead, roomId, user?.id]);
 
+
     const handleSend = async () => {
         if (!inputValue.trim()) return;
 
@@ -124,8 +125,6 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         if (navigator.vibrate) navigator.vibrate(10);
 
         if (editingMessageId) {
-            // Note: The original file had a partial JSX block here that was unused/invalid. 
-            // I am cleaning it up as part of this rewrite to fix the file structure.
             const content = inputValue.trim();
             // Optimistic update for edit
             try {
@@ -256,7 +255,7 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                                             Leave Group
                                         </button>
 
-                                        {Number(roomDetails.created_by) === Number(user?.id) && (
+                                        {roomDetails.created_by === user?.id && (
                                             <button
                                                 onClick={async () => {
                                                     setIsGroupMenuOpen(false);
@@ -290,9 +289,9 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
                 <div className="flex-1" />
 
                 {messages?.map((msg, i) => {
-                    const isOwn = Number(msg.sender_id) === Number(user?.id);
+                    const isOwn = msg.sender_id === user?.id;
                     const prevMsg = messages[i - 1];
-                    const isSequence = prevMsg && Number(prevMsg.sender_id) === Number(msg.sender_id) &&
+                    const isSequence = prevMsg && prevMsg.sender_id === msg.sender_id &&
                         (msg.created_at.getTime() - prevMsg.created_at.getTime() < 300000); // 5 mins grouping
 
                     return (

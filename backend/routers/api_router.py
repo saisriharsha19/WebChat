@@ -22,7 +22,7 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
     return current_user
 
 @router.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_user(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -85,7 +85,7 @@ async def get_messages(
 
 @router.get("/messages/{message_id}/read-receipts", response_model=List[ReadReceiptResponse])
 async def get_message_read_receipts(
-    message_id: int,
+    message_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -94,7 +94,7 @@ async def get_message_read_receipts(
 
 @router.post("/messages/{message_id}/read", response_model=ReadReceiptResponse)
 async def mark_message_read(
-    message_id: int,
+    message_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

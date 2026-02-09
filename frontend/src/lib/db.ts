@@ -2,7 +2,7 @@ import Dexie, { Table } from 'dexie';
 
 // Define database interfaces
 export interface User {
-    id: number;
+    id: string;
     username: string;
     email: string;
     display_name?: string;
@@ -15,7 +15,7 @@ export interface User {
 }
 
 export interface FileAttachment {
-    id: number;
+    id: string;
     filename: string;
     file_path: string;
     file_size: number;
@@ -23,60 +23,66 @@ export interface FileAttachment {
 }
 
 export interface Message {
-    id?: number;
+    id?: string;
     content: string;
-    sender_id: number;
-    room_id: number; // Changed to number
+    sender_id: string;
+    room_id: string;
     message_type: 'text' | 'image' | 'file' | 'system';
     created_at: Date;
     updated_at: Date;
     is_deleted: boolean;
-    is_edited?: boolean; // Added
+    is_edited?: boolean;
     status?: 'pending' | 'synced' | 'failed';
     temp_id?: string;
     sender?: User;
-    attachments?: FileAttachment[]; // Added
-    read_receipts?: ReadReceipt[]; // Added
+    attachments?: FileAttachment[];
+    read_receipts?: ReadReceipt[];
 }
 
 export interface ReadReceipt {
-    id?: number;
-    message_id: number;
-    user_id: number;
+    id?: string;
+    message_id: string;
+    user_id: string;
     read_at: Date;
 }
 
 export interface Room {
-    id: number; // Changed to number
+    id: string;
     name?: string;
-    type: 'direct' | 'group'; // Changed from room_type
+    type: 'direct' | 'group';
     created_at: Date;
-    created_by?: number;
+    created_by?: string;
     members?: any[];
 }
 
 // Define the database
 export class WebChatDB extends Dexie {
-    users!: Table<User, number>;
-    messages!: Table<Message, number>;
-    readReceipts!: Table<ReadReceipt, number>;
-    rooms!: Table<Room, number>;
+    users!: Table<User, string>;
+    messages!: Table<Message, string>;
+    readReceipts!: Table<ReadReceipt, string>;
+    rooms!: Table<Room, string>;
 
     constructor() {
         super('WebChatDB');
 
         this.version(1).stores({
-            users: '++id, username, email',
-            messages: '++id, room_id, sender_id, created_at, status, temp_id',
-            readReceipts: '++id, message_id, user_id',
-            rooms: 'id, room_type, created_by'
+            users: 'id, username, email', // Removed ++
+            messages: 'id, room_id, sender_id, created_at, status, temp_id', // Removed ++
+            readReceipts: 'id, message_id, user_id', // Removed ++
+            rooms: 'id, room_type, created_by' // Removed ++ and fixed in v2/v3
         });
 
-        // Version 2: Ensure room_id is indexed correctly (it's same string, but we use numbers now)
-        // We can keep the same schema string as indexes are type-agnostic usually, 
-        // but let's be explicit if we want to change primary keys or add new indices.
         this.version(2).stores({
-            rooms: 'id, type, created_by' // Changed room_type to type to match backend
+            rooms: 'id, type, created_by'
+        });
+
+        // Version 3: Explicitly set string PKs if needed, though 'id' works for both. 
+        // We just ensure we don't use auto-increment.
+        this.version(3).stores({
+            users: 'id, username, email',
+            messages: 'id, room_id, sender_id, created_at, status, temp_id',
+            readReceipts: 'id, message_id, user_id',
+            rooms: 'id, type, created_by'
         });
     }
 }

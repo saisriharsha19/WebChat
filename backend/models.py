@@ -3,6 +3,10 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
 import enum
+import uuid
+
+def generate_uuid():
+    return str(uuid.uuid4())
 
 class RoomType(str, enum.Enum):
     DIRECT = "direct"
@@ -11,7 +15,7 @@ class RoomType(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
@@ -35,8 +39,8 @@ class User(Base):
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     endpoint = Column(String, unique=True, nullable=False)
     p256dh = Column(String, nullable=False)
     auth = Column(String, nullable=False)
@@ -47,11 +51,11 @@ class PushSubscription(Base):
 class Room(Base):
     __tablename__ = "rooms"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=True) # Null for DMs
     type = Column(String, default=RoomType.DIRECT) # direct, group
-    created_at = Column(DateTime, default=datetime.utcnow)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
     
     creator = relationship("User", back_populates="created_rooms")
     members = relationship("RoomMember", back_populates="room", cascade="all, delete-orphan")
@@ -60,8 +64,8 @@ class Room(Base):
 class RoomMember(Base):
     __tablename__ = "room_members"
     
-    room_id = Column(Integer, ForeignKey("rooms.id"), primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    room_id = Column(String, ForeignKey("rooms.id"), primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), primary_key=True, index=True)
     role = Column(String, default="member") # admin, member
     joined_at = Column(DateTime, default=datetime.utcnow)
     last_read_at = Column(DateTime, default=datetime.utcnow)
@@ -72,10 +76,10 @@ class RoomMember(Base):
 class Message(Base):
     __tablename__ = "messages"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
     content = Column(Text, nullable=True) # Can be null if just a file? Keep simple for now.
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False, index=True)
+    sender_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    room_id = Column(String, ForeignKey("rooms.id"), nullable=False, index=True)
     message_type = Column(String, default="text") # text, system, file
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -90,8 +94,8 @@ class Message(Base):
 class FileAttachment(Base):
     __tablename__ = "file_attachments"
     
-    id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    message_id = Column(String, ForeignKey("messages.id"), nullable=False, index=True)
     filename = Column(String, nullable=False)
     file_path = Column(String, nullable=False) # Local path or S3 key
     file_size = Column(Integer, nullable=False) # Bytes
@@ -103,9 +107,9 @@ class FileAttachment(Base):
 class ReadReceipt(Base):
     __tablename__ = "read_receipts"
     
-    id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    message_id = Column(String, ForeignKey("messages.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     read_at = Column(DateTime, default=datetime.utcnow)
     
     message = relationship("Message", back_populates="read_receipts")
@@ -119,10 +123,10 @@ class FriendRequestStatus(str, enum.Enum):
 class FriendRequest(Base):
     __tablename__ = "friend_requests"
     
-    id = Column(Integer, primary_key=True, index=True)
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    status = Column(String, default=FriendRequestStatus.PENDING)
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    sender_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    receiver_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    status = Column(String, default=FriendRequestStatus.PENDING, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

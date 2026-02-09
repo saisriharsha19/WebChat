@@ -1,5 +1,5 @@
 export interface User {
-    id: number;
+    id: string;
     username: string;
     email: string;
     display_name?: string;
@@ -11,23 +11,23 @@ export interface User {
 }
 
 export interface RoomMember {
-    user_id: number;
+    user_id: string;
     role: 'admin' | 'member';
     joined_at: string;
     user: User;
 }
 
 export interface Room {
-    id: number;
+    id: string;
     name?: string;
     type: 'direct' | 'group';
     created_at: string;
-    created_by?: number;
+    created_by?: string;
     members: RoomMember[];
 }
 
 export interface FileAttachment {
-    id: number;
+    id: string;
     filename: string;
     file_path: string;
     file_size: number;
@@ -36,17 +36,17 @@ export interface FileAttachment {
 }
 
 export interface ReadReceipt {
-    id: number;
-    message_id: number;
-    user_id: number;
+    id: string;
+    message_id: string;
+    user_id: string;
     read_at: string;
 }
 
 export interface Message {
-    id: number;
+    id: string;
     content?: string;
-    sender_id: number;
-    room_id: number;
+    sender_id: string;
+    room_id: string;
     message_type: 'text' | 'image' | 'file' | 'system';
     created_at: string;
     updated_at?: string;
@@ -58,9 +58,9 @@ export interface Message {
 }
 
 export interface FriendRequest {
-    id: number;
-    sender_id: number;
-    receiver_id: number;
+    id: string;
+    sender_id: string;
+    receiver_id: string;
     status: 'pending' | 'accepted' | 'rejected';
     created_at: string;
     sender?: User;

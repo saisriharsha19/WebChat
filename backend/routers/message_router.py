@@ -18,7 +18,7 @@ router = APIRouter(prefix="/messages", tags=["messages"])
 
 @router.put("/{message_id}", response_model=MessageResponse)
 async def edit_message(
-    message_id: int,
+    message_id: str,
     message_update: MessageUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

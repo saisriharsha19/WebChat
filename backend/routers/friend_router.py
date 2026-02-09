@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/friends", tags=["friends"])
 
 @router.post("/request/{user_id}", response_model=FriendRequestResponse)
 async def send_friend_request(
-    user_id: int,
+    user_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -78,7 +78,7 @@ async def send_friend_request(
 
 @router.put("/request/{request_id}/{action}", response_model=FriendRequestResponse)
 async def respond_to_friend_request(
-    request_id: int,
+    request_id: str,
     action: str, # accept, reject
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

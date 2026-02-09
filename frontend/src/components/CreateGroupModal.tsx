@@ -9,7 +9,7 @@ interface CreateGroupModalProps {
 
 export function CreateGroupModal({ onClose, onCreated }: CreateGroupModalProps) {
     const [name, setName] = useState('');
-    const [memberIds, setMemberIds] = useState<number[]>([]);
+    const [memberIds, setMemberIds] = useState<string[]>([]);
 
     const create = async () => {
         if (!name || memberIds.length === 0) return;

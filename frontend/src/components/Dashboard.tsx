@@ -15,7 +15,7 @@ export default function Dashboard() {
     const { user, logout } = useAuth();
     const { connectionStatus } = useWebSocket();
     const { isSubscribed, subscribeToPush, permission } = usePushNotifications();
-    const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
+    const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [showDirectory, setShowDirectory] = useState(false);
 

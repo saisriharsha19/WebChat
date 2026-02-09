@@ -47,3 +47,12 @@ async def test_notification(db: Session = Depends(get_db), current_user: User = 
         "/"
     )
     return {"message": "Test notification sent"}
+
+import os
+
+@router.get("/vapid-public-key")
+async def get_vapid_public_key():
+    public_key = os.getenv("VAPID_PUBLIC_KEY")
+    if not public_key:
+        raise HTTPException(status_code=500, detail="VAPID_PUBLIC_KEY not configured on server")
+    return {"public_key": public_key}

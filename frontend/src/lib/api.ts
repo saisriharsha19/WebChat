@@ -10,27 +10,27 @@ export const API_ENDPOINTS = {
     me: `${API_URL}/auth/me`,
 
     // Users
-    getUser: (userId: number) => `${API_URL}/api/users/${userId}`,
+    getUser: (userId: string) => `${API_URL}/api/users/${userId}`,
     getUsers: (search?: string) => `${API_URL}/api/users${search ? `?search=${encodeURIComponent(search)}` : ''}`,
     updateProfile: `${API_URL}/api/users/me/profile`,
 
     // Rooms
     getRooms: `${API_URL}/rooms/`,
-    getRoom: (roomId: number) => `${API_URL}/rooms/${roomId}`,
-    createDM: (userId: number) => `${API_URL}/rooms/dm?target_user_id=${userId}`,
+    getRoom: (roomId: string) => `${API_URL}/rooms/${roomId}`,
+    createDM: (userId: string) => `${API_URL}/rooms/dm?target_user_id=${userId}`,
     createGroup: `${API_URL}/rooms/group`,
-    leaveRoom: (roomId: number) => `${API_URL}/rooms/${roomId}/leave`,
-    deleteRoom: (roomId: number) => `${API_URL}/rooms/${roomId}`,
+    leaveRoom: (roomId: string) => `${API_URL}/rooms/${roomId}/leave`,
+    deleteRoom: (roomId: string) => `${API_URL}/rooms/${roomId}`,
 
     // Messages
-    getMessages: (roomId: number, skip = 0, limit = 50) =>
+    getMessages: (roomId: string, skip = 0, limit = 50) =>
         `${API_URL}/api/messages?room_id=${roomId}&skip=${skip}&limit=${limit}`,
-    editMessage: (id: number) => `${API_URL}/messages/${id}`,
-    markRead: (messageId: number) => `${API_URL}/api/messages/${messageId}/read`,
-    getReadReceipts: (messageId: number) => `${API_URL}/api/messages/${messageId}/read-receipts`,
+    editMessage: (id: string) => `${API_URL}/messages/${id}`,
+    markRead: (messageId: string) => `${API_URL}/api/messages/${messageId}/read`,
+    getReadReceipts: (messageId: string) => `${API_URL}/api/messages/${messageId}/read-receipts`,
 
     // Files
-    uploadFile: (roomId: number) => `${API_URL}/files/upload?room_id=${roomId}`,
+    uploadFile: (roomId: string) => `${API_URL}/files/upload?room_id=${roomId}`,
 
     // Sync
     sync: `${API_URL}/api/sync`,
@@ -40,14 +40,18 @@ export const API_ENDPOINTS = {
     getFriendRequestsReceived: `${API_URL}/api/friends/requests/received`,
     getFriendRequestsSent: `${API_URL}/api/friends/requests/sent`,
     searchUsers: (query: string) => `${API_URL}/api/friends/search?query=${query}`,
-    sendFriendRequest: (userId: number) => `${API_URL}/api/friends/request/${userId}`,
-    respondFriendRequest: (requestId: number, action: 'accept' | 'reject') => `${API_URL}/api/friends/request/${requestId}/${action}`,
+    sendFriendRequest: (userId: string) => `${API_URL}/api/friends/request/${userId}`,
+    respondFriendRequest: (requestId: string, action: 'accept' | 'reject') => `${API_URL}/api/friends/request/${requestId}/${action}`,
 
     // WebSocket
     wsChat: (token: string) => `${WS_BASE_URL}/ws/chat?token=${encodeURIComponent(token)}`,
 
     // System
     systemInfo: `${API_URL}/api/system/info`,
+
+    // Notifications
+    vapidKey: `${API_URL}/notifications/vapid-public-key`,
+    subscribePush: `${API_URL}/notifications/subscribe`,
 };
 
 export interface ApiError {

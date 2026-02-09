@@ -19,7 +19,7 @@ if not os.path.exists(UPLOAD_DIR):
 
 @router.post("/upload")
 async def upload_file(
-    room_id: int,
+    room_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

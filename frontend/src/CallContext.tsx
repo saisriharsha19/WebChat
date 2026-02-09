@@ -7,7 +7,7 @@ import { usePermissionState } from './hooks/usePermissionState';
 
 interface CallState {
     status: 'idle' | 'calling' | 'incoming' | 'connected' | 'ended' | 'rejected' | 'busy';
-    userId?: number;
+    userId?: string;
     callId?: string; // UUID for race condition handling
     sdp?: any;
 }
@@ -15,7 +15,7 @@ interface CallState {
 interface CallContextType {
     callState: CallState;
     remoteStream: MediaStream | null;
-    startCall: (targetUserId: number) => Promise<{ pc: RTCPeerConnection, stream: MediaStream } | undefined>;
+    startCall: (targetUserId: string) => Promise<{ pc: RTCPeerConnection, stream: MediaStream } | undefined>;
     answerIncomingCall: () => Promise<{ pc: RTCPeerConnection, stream: MediaStream } | undefined>;
     rejectIncomingCall: () => void;
     endCall: () => void;
@@ -233,7 +233,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         return await navigator.mediaDevices.getUserMedia(constraints);
     };
 
-    const startCall = async (targetUserId: number) => {
+    const startCall = async (targetUserId: string) => {
         // Permission check
         await checkMicPermission();
         if (micPermission === 'denied') {

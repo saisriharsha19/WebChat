@@ -114,29 +114,67 @@ registerRoute(
 // 3. Push Notifications
 // ---------------------------------------------------------------------------
 
+interface NotificationAction {
+    action: string;
+    title: string;
+    icon?: string;
+}
+
+interface ExtendedNotificationOptions extends NotificationOptions {
+    actions?: NotificationAction[];
+    renotify?: boolean;
+    vibrate?: number[];
+    requireInteraction?: boolean;
+}
+
 self.addEventListener('push', (event) => {
     const data = event.data ? event.data.json() : {};
     const title = data.title || 'Entropy Notification';
-    const options = {
+    const type = data.type || 'message'; // 'message' | 'call' | 'system'
+
+    // Default options
+    const options: ExtendedNotificationOptions = {
         body: data.body || '',
         icon: data.icon || '/pwa-192x192.png',
-        badge: '/entropy.svg', // Small monochrome icon for status bar
+        badge: '/entropy.svg',
         vibrate: [100, 50, 100],
         data: {
             url: data.url || '/',
-            message_id: data.message_id
+            type: type,
+            room_id: data.room_id,
+            call_id: data.call_id
         },
-        actions: [
-            {
-                action: 'open',
-                title: 'Open'
-            },
-            {
-                action: 'mark_read',
-                title: 'Mark as Read'
-            }
-        ]
+        actions: []
     };
+
+    // CALL SPECIFIC LOGIC
+    if (type === 'call') {
+        options.tag = 'call-' + (data.call_id || Date.now()); // Unique tag per call
+        options.renotify = true;
+        options.requireInteraction = true; // Keep notification on screen
+        options.vibrate = [500, 200, 500, 200, 500]; // Longer vibration pattern
+        options.actions = [
+            { action: 'answer', title: 'Answer' },
+            { action: 'decline', title: 'Decline' }
+        ];
+    }
+    // MESSAGE SPECIFIC LOGIC
+    else if (type === 'message') {
+        options.tag = 'room-' + (data.room_id || 'general'); // Group by room
+        options.renotify = true;
+        options.actions = [
+            { action: 'open', title: 'Reply' },
+            { action: 'mark_read', title: 'Mark Read' }
+        ];
+
+        // Update App Badge if supported
+        if ('setAppBadge' in navigator) {
+            // We don't have the exact count here, but we can set a flag or just 1
+            // Ideally backend sends count. For now, just set 1 to indicate "something new"
+            // or increment if we could track it (sw is statelessish though)
+            (navigator as any).setAppBadge(1).catch(() => { });
+        }
+    }
 
     event.waitUntil(self.registration.showNotification(title, options));
 });
@@ -144,31 +182,41 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
-    // Both 'open' and 'mark_read' will open the app for now
-    // Since we need auth context to mark as read reliably
+    const action = event.action;
+    // const type = event.notification.data.type; // Unused for now
+    const urlToOpen = new URL(event.notification.data.url, self.location.origin).href;
 
-    event.waitUntil(
-        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-            const urlToOpen = new URL(event.notification.data.url, self.location.origin).href;
+    // Handle Decline (No navigation needed)
+    if (action === 'decline') {
+        // Optional: Send a request to backend to reject call?
+        // For now just closing is fine, the caller will timeout.
+        return;
+    }
 
-            // Check if there is already a window for this app open
-            for (let i = 0; i < windowClients.length; i++) {
-                const client = windowClients[i];
-                // Check if the client matches the origin
-                if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-                    return client.focus().then((focusedClient) => {
-                        // Navigate the focused client to the notification URL
-                        if (focusedClient && 'navigate' in focusedClient) {
-                            return focusedClient.navigate(urlToOpen);
-                        }
-                        return focusedClient;
-                    });
-                }
+    // Handle Mark Read (Likely needs auth, difficult in SW without tokens in IndexedDB)
+    // We'll just open the app for now for simplicity/reliability
+
+    // Handle Answer/Open/Default Click
+    const promise = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+        // 1. Try to find existing window
+        for (let i = 0; i < windowClients.length; i++) {
+            const client = windowClients[i];
+            if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+                return client.focus().then((focusedClient) => {
+                    // If it's a call answer, maybe we append ?answer=true to URL or use postMessage?
+                    // Navigation is safest to ensure context is loaded.
+                    if (focusedClient && 'navigate' in focusedClient) {
+                        return focusedClient.navigate(urlToOpen);
+                    }
+                    return focusedClient;
+                });
             }
-            // If no window is open, open one
-            if (self.clients.openWindow) {
-                return self.clients.openWindow(urlToOpen);
-            }
-        })
-    );
+        }
+        // 2. Open new window if none
+        if (self.clients.openWindow) {
+            return self.clients.openWindow(urlToOpen);
+        }
+    });
+
+    event.waitUntil(promise);
 });

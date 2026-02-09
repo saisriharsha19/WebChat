@@ -3,7 +3,7 @@ import { UserList } from './UserList';
 
 interface DirectoryModalProps {
     onClose: () => void;
-    onSelectUser: (userId: number) => void;
+    onSelectUser: (userId: string) => void;
 }
 
 export function DirectoryModal({ onClose, onSelectUser }: DirectoryModalProps) {

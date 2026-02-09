@@ -5,8 +5,8 @@ import { useWebSocket } from '../WebSocketContext';
 import { useCall } from '../CallContext';
 
 interface FriendManagerProps {
-    onSelectUser: (userId: number) => void;
-    selectedUserIds?: number[];
+    onSelectUser: (userId: string) => void;
+    selectedUserIds?: string[];
 }
 
 export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds = [] }: FriendManagerProps) {
@@ -69,7 +69,7 @@ export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds 
         }
     };
 
-    const sendRequest = async (userId: number) => {
+    const sendRequest = async (userId: string) => {
         try {
             await fetchWithAuth(API_ENDPOINTS.sendFriendRequest(userId), { method: 'POST' });
             // Update local state to show 'pending'
@@ -81,7 +81,7 @@ export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds 
         }
     };
 
-    const acceptRequest = async (requestId: number) => {
+    const acceptRequest = async (requestId: string) => {
         try {
             await fetchWithAuth(API_ENDPOINTS.respondFriendRequest(requestId, 'accept'), { method: 'PUT' });
             loadRequests();
@@ -90,7 +90,7 @@ export function FriendManager({ onSelectUser, selectedUserIds: _selectedUserIds 
         }
     };
 
-    const rejectRequest = async (requestId: number) => {
+    const rejectRequest = async (requestId: string) => {
         try {
             await fetchWithAuth(API_ENDPOINTS.respondFriendRequest(requestId, 'reject'), { method: 'PUT' });
             loadRequests();
