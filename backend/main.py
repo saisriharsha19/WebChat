@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 
+# Load env vars immediately
+load_dotenv()
+
 from contextlib import asynccontextmanager
 from database import engine, Base
 from routers import auth_router, api_router, websocket_router, room_router, message_router, file_router, sync_router, friend_router, notification_router
@@ -10,9 +13,31 @@ from routers import auth_router, api_router, websocket_router, room_router, mess
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Check if we should reset the database
-    if os.getenv("RESET_DB") == "True":
-        print("⚠️ RESETTING DATABASE (RESET_DB=True) ⚠️")
+    # Robust check for true/True/TRUE/1/yes
+    reset_db_val = str(os.getenv("RESET_DB", "False")).lower()
+    should_reset = reset_db_val in ("true", "1", "yes", "on")
+    
+    if should_reset:
+        print(f"⚠️ RESETTING DATABASE (RESET_DB={os.getenv('RESET_DB')}) ⚠️")
         try:
+            # Force disconnect other clients (PostgreSQL specific)
+            # This fixes "QueryCanceled" due to locks from other active sessions
+            if "postgresql" in str(engine.url):
+                try:
+                    from sqlalchemy import text
+                    with engine.connect() as conn:
+                        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+                        print("Attempting to terminate other connections to release locks...")
+                        conn.execute(text("""
+                            SELECT pg_terminate_backend(pg_stat_activity.pid)
+                            FROM pg_stat_activity
+                            WHERE pg_stat_activity.datname = current_database()
+                            AND pid <> pg_backend_pid();
+                        """))
+                        print("Active connections terminated.")
+                except Exception as kill_err:
+                    print(f"Warning: Could not kill external connections: {kill_err}")
+            
             Base.metadata.drop_all(bind=engine)
             print("Database dropped successfully.")
             
@@ -103,7 +128,7 @@ async def serve_media(filename: str):
         return FileResponse(file_path, headers={"Content-Disposition": "inline"})
     
     return {"error": "File not found"}
-load_dotenv()
+# load_dotenv() - Moved to top
 # CORS Configuration
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
