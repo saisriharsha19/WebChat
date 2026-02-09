@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_URL } from '../lib/api';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function urlBase64ToUint8Array(base64String: string) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
