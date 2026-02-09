@@ -51,22 +51,34 @@ async def sync_messages(
     
     # Get new messages since last sync
     new_messages = []
-    if sync_data.last_sync_time:
-        # Get all messages newer than last sync (across all rooms user has access to)
-        # For simplicity, we'll get messages from rooms the user has sent messages in
-        user_rooms = db.query(Message.room_id).filter(
-            Message.sender_id == current_user.id
-        ).distinct().all()
-        room_ids = [room[0] for room in user_rooms]
+    # Get new messages since last sync
+    new_messages = []
+    
+    # Get all rooms user is a member of
+    # We must join RoomMember to find which rooms the user belongs to
+    from models import RoomMember
+    user_rooms = db.query(RoomMember.room_id).filter(
+        RoomMember.user_id == current_user.id
+    ).all()
+    room_ids = [r[0] for r in user_rooms]
+    
+    if room_ids:
+        query = db.query(Message).filter(Message.room_id.in_(room_ids))
         
-        if room_ids:
-            messages = db.query(Message).filter(
-                Message.room_id.in_(room_ids),
-                Message.created_at > sync_data.last_sync_time,
-                Message.sender_id != current_user.id  # Don't return own messages
-            ).order_by(Message.created_at.asc()).all()
+        if sync_data.last_sync_time:
+            # Normal sync: Get everything since last check
+            query = query.filter(Message.created_at > sync_data.last_sync_time)
+            query = query.filter(Message.sender_id != current_user.id) # Don't return own messages (unless we want to verify sync?)
+            # Actually, for multi-device, we DO want own messages that were sent from other devices.
+            # But sticking to previous logic for now to avoid duplicates if handling isn't robust.
+            # Let's include everything > time. The frontend handles deduping via DB constraints usually.
+        else:
+            # Initial sync: Get last 50 messages per room or just last 100 global?
+            # Global last 500 for now to populate dashboard
+            query = query.order_by(Message.created_at.desc()).limit(500)
             
-            new_messages = messages
+        messages = query.order_by(Message.created_at.asc()).all()
+        new_messages = messages
     
     # Fix timezones for serialization (pydantic will use these)
     from datetime import timezone

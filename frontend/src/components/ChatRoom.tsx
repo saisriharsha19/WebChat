@@ -86,17 +86,22 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
 
                     // Only mark read if it's not my message
                     if (msgId && senderId && senderId !== user?.id) {
-                        // Check if already read locally to avoid spamming (optimization)
-                        // But context handles deduping too.
-                        markAsRead(msgId, roomId);
-                        // Stop observing this one
+                        // Find the message object to check if already read
+                        const msg = messages.find(m => m.id === msgId);
+                        const alreadyRead = msg?.read_receipts?.some((r: any) => r.user_id === user?.id);
+
+                        if (!alreadyRead) {
+                            markAsRead(msgId, roomId);
+                        }
+
+                        // Stop observing this one to save resources
                         observer.current?.unobserve(entry.target);
                     }
                 }
             });
         }, {
             root: null, // viewport
-            threshold: 0.5 // 50% visible
+            threshold: 0.1 // Trigger when even slightly visible (10%) for "instant" feel
         });
 
         // Observe all unread messages from others

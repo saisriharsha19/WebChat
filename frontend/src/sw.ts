@@ -98,9 +98,9 @@ registerRoute(
 
 // Media (Audio/Video) - Cache First (since ringtone doesn't change)
 registerRoute(
-    ({ request }) => request.destination === 'audio' || request.destination === 'video',
+    ({ request }) => request.destination === 'audio' || request.destination === 'video' || request.url.endsWith('ringtone.mp3'),
     new CacheFirst({
-        cacheName: 'media',
+        cacheName: 'media-v2', // Bump version to force refresh
         plugins: [
             new ExpirationPlugin({
                 maxEntries: 20,
