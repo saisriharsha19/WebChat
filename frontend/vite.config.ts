@@ -133,15 +133,19 @@ export default defineConfig({
         },
     },
     server: {
+        host: true, // Auto-detect IP addresses
         port: 5173,
         proxy: {
             '/api': {
-                target: 'http://localhost:8000',
+                target: 'https://webchat-8bvf.onrender.com',
                 changeOrigin: true,
+                secure: true,
             },
             '/ws': {
-                target: 'ws://localhost:8000',
+                target: 'wss://webchat-8bvf.onrender.com',
                 ws: true,
+                changeOrigin: true,
+                secure: true,
             },
         }
     }
