@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
+from datetime import datetime, timezone
 from typing import Optional, List
 import enum
 
@@ -42,6 +42,12 @@ class UserResponse(UserBase):
     
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("created_at", "last_seen", check_fields=False)
+    def force_utc(cls, v):
+        if v and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
+
 class UserProfileUpdate(BaseModel):
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
@@ -56,6 +62,12 @@ class RoomMemberResponse(BaseModel):
     user: UserResponse
     
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("joined_at", check_fields=False)
+    def force_utc(cls, v):
+        if v and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
 class RoomCreate(BaseModel):
     name: Optional[str] = None
@@ -72,6 +84,12 @@ class RoomResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("created_at", check_fields=False)
+    def force_utc(cls, v):
+        if v and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
+
 # File Schemas
 class FileAttachmentResponse(BaseModel):
     id: str
@@ -82,6 +100,12 @@ class FileAttachmentResponse(BaseModel):
     uploaded_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("uploaded_at", check_fields=False)
+    def force_utc(cls, v):
+        if v and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
 # Message Schemas
 class MessageCreate(BaseModel):
@@ -108,6 +132,12 @@ class MessageResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("created_at", "updated_at", check_fields=False)
+    def force_utc(cls, v):
+        if v and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
+
 class MessageWithSender(MessageResponse):
     sender: UserResponse
 
@@ -122,6 +152,12 @@ class ReadReceiptResponse(BaseModel):
     read_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("read_at", check_fields=False)
+    def force_utc(cls, v):
+        if v and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
 # Sync Schemas
 class SyncMessage(BaseModel):
@@ -159,6 +195,12 @@ class FriendRequestResponse(BaseModel):
     receiver: Optional[UserResponse] = None
     
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("created_at", check_fields=False)
+    def force_utc(cls, v):
+        if v and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
 class FriendResponse(UserResponse):
     friendship_status: Optional[str] = None # 'friend', 'pending_sent', 'pending_received', 'none'
