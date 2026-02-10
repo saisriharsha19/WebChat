@@ -28,9 +28,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         created_at: new Date(userData.created_at),
                         last_seen: new Date(userData.last_seen),
                     });
-
-                    // Register Push Subscription
-                    registerPushSubscription();
                 })
                 .catch(() => {
                     // Token might be invalid
@@ -42,64 +39,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
         }
     }, [token]);
-
-    const urlBase64ToUint8Array = (base64String: string) => {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding)
-            .replace(/\-/g, '+')
-            .replace(/_/g, '/');
-
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-
-        for (let i = 0; i < rawData.length; ++i) {
-            outputArray[i] = rawData.charCodeAt(i);
-        }
-        return outputArray;
-    }
-
-    const registerPushSubscription = async () => {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-            console.log('Push messaging isn\'t supported.');
-            return;
-        }
-
-        try {
-            // Wait for SW to be ready
-            const registration = await navigator.serviceWorker.ready;
-
-            // Get VAPID Key from backend
-            let response = await fetchWithAuth(API_ENDPOINTS.vapidKey);
-            if (!response) {
-                // Fallback
-                return;
-            }
-
-            // If fetchWithAuth throws on error, we are in catch block.
-            // If it returns data:
-            const { public_key } = response;
-            if (!public_key) return;
-
-            const convertedVapidKey = urlBase64ToUint8Array(public_key);
-
-            // Subscribe
-            const subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: convertedVapidKey
-            });
-
-            // Send to backend
-            await fetchWithAuth(API_ENDPOINTS.subscribePush, {
-                method: 'POST',
-                body: JSON.stringify(subscription)
-            });
-
-            console.log('Push subscription registered');
-
-        } catch (error) {
-            console.error('Failed to register push subscription:', error);
-        }
-    };
 
     const login = async (username: string, password: string) => {
         const response = await fetch(API_ENDPOINTS.login, {

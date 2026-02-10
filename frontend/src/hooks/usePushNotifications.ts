@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { API_URL } from '../lib/api';
+import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
@@ -23,6 +23,7 @@ export function usePushNotifications() {
     const [subscription, setSubscription] = useState<PushSubscription | null>(null);
     const [permission, setPermission] = useState(Notification.permission);
 
+    // Initial check for existing subscription
     useEffect(() => {
         if ('serviceWorker' in navigator && 'PushManager' in window) {
             navigator.serviceWorker.ready.then((registration) => {
@@ -30,8 +31,9 @@ export function usePushNotifications() {
                     if (sub) {
                         setSubscription(sub);
                         setIsSubscribed(true);
-                        // Optionally re-send to backend to ensure sync
-                        sendSubscriptionToBackend(sub);
+                        // We do NOT automatically resend to backend here to avoid spamming on every reload
+                        // The backend should persist it. 
+                        // However, if we wanted to be sure, we could sync it once per session or token refresh.
                     }
                 });
             });
@@ -43,20 +45,14 @@ export function usePushNotifications() {
         if (!keys) return;
 
         try {
-            const token = localStorage.getItem('token'); // Assuming standard token storage
-            if (!token) return;
-
-            await fetch(`${API_URL}/notifications/subscribe`, {
+            await fetchWithAuth(API_ENDPOINTS.subscribePush, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     endpoint: sub.endpoint,
                     keys: keys
                 })
             });
+            console.log("Subscription synced with backend");
         } catch (error) {
             console.error("Failed to send subscription to backend", error);
         }
@@ -65,25 +61,49 @@ export function usePushNotifications() {
     const subscribeToPush = useCallback(async () => {
         if (!('serviceWorker' in navigator)) return;
 
-        const registration = await navigator.serviceWorker.ready;
-
         try {
-            // ALWAYS check for existing first to avoid "registration limit" errors
+            const registration = await navigator.serviceWorker.ready;
+
+            // 1. Check if already subscribed
             let sub = await registration.pushManager.getSubscription();
 
+            // 2. If not, subscribe
             if (!sub) {
-                // Only create new if none exists
+                // Fetch public key if we don't have it in env (fallback) 
+                // but usually VITE_VAPID_PUBLIC_KEY should be set.
+                // If we want to fetch it dynamically:
+                let applicationServerKey = VAPID_PUBLIC_KEY ? urlBase64ToUint8Array(VAPID_PUBLIC_KEY) : undefined;
+
+                if (!applicationServerKey) {
+                    try {
+                        const res = await fetchWithAuth(API_ENDPOINTS.vapidKey);
+                        if (res && res.public_key) {
+                            applicationServerKey = urlBase64ToUint8Array(res.public_key);
+                        }
+                    } catch (e) {
+                        console.error("Could not fetch VAPID key", e);
+                        return;
+                    }
+                }
+
+                if (!applicationServerKey) {
+                    console.error("No VAPID public key available");
+                    return;
+                }
+
                 sub = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                    applicationServerKey
                 });
             }
 
             setSubscription(sub);
             setIsSubscribed(true);
             setPermission(Notification.permission);
+
+            // 3. Send to backend
             await sendSubscriptionToBackend(sub);
-            console.log("Subscribed to push notifications");
+
         } catch (error) {
             console.error("Failed to subscribe to push", error);
         }
