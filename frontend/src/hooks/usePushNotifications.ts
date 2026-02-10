@@ -87,7 +87,7 @@ export function usePushNotifications() {
                 }
 
                 if (!applicationServerKey) {
-                    console.error("No VAPID public key available");
+                    console.error("No VAPID public key available (Env: " + (!!VAPID_PUBLIC_KEY) + ")");
                     return;
                 }
 
@@ -105,7 +105,7 @@ export function usePushNotifications() {
             await sendSubscriptionToBackend(sub);
 
         } catch (error) {
-            console.error("Failed to subscribe to push", error);
+            console.error("Failed to subscribe to push. Check console for details.", error);
         }
     }, [sendSubscriptionToBackend]);
 

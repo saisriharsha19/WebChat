@@ -82,10 +82,12 @@ async def sync_messages(
             # Normal sync: Get everything since last check
             query = query.filter(Message.created_at > last_sync)
             
-            # Note: We DO want own messages if they were sent from another device, 
-            # but currently we don't distinguish device IDs. 
-            # For now, excluding own messages to prevent echoing back what we just sent/synced.
-            query = query.filter(Message.sender_id != current_user.id)
+            # Note: We DO want own messages if they were sent from another device.
+            # The client-side DB (Dexie) should handle deduplication by ID.
+            # So we typically DO NOT filter out current_user.id here anymore for multi-device support.
+            # However, to save bandwidth/processing, we *could* rely on the client knowing its own state,
+            # but a "sync" should be a source of truth. 
+            # If we send it, the client 'put' will just overwrite/update it, which is fine.
             
             messages = query.order_by(Message.created_at.asc()).all()
         else:
