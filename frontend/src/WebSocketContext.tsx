@@ -144,6 +144,42 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    // Throttled Sync Implementation
+    const lastSyncTriggerRef = useRef<number>(0);
+    const syncTimeoutRef = useRef<number | null>(null);
+
+    const throttledSync = useCallback(() => {
+        const now = Date.now();
+        const timeSinceLastSync = now - lastSyncTriggerRef.current;
+        const THROTTLE_MS = 2000; // 2 seconds throttle
+
+        if (timeSinceLastSync >= THROTTLE_MS) {
+            lastSyncTriggerRef.current = now;
+            syncMessages();
+        } else {
+            // Schedule it for later if not already scheduled
+            if (!syncTimeoutRef.current) {
+                syncTimeoutRef.current = window.setTimeout(() => {
+                    lastSyncTriggerRef.current = Date.now();
+                    syncMessages();
+                    syncTimeoutRef.current = null;
+                }, THROTTLE_MS - timeSinceLastSync);
+            }
+        }
+    }, []);
+
+    // Periodic Sync (Every 60 seconds) to ensure freshness even if idle
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            if (token && user && (wsRef.current?.readyState === WebSocket.OPEN || document.visibilityState === 'visible')) {
+                console.log("Periodic background sync...");
+                syncMessages();
+            }
+        }, 60000); // 60 seconds
+
+        return () => clearInterval(intervalId);
+    }, [token, user]);
+
     const connect = () => {
         if (!token) return;
         if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -174,6 +210,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     const data: WSMessage = JSON.parse(event.data);
 
                     if (data.type === 'message' || data.type === 'new_message') {
+                        // Trigger throttled sync to ensure we catch up on any missing context
+                        throttledSync();
+
                         // Handle chat messages
                         const msg = data.message || data;
                         const correlationId = data.correlation_id;
@@ -302,17 +341,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         return () => {
             if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+            if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
             if (wsRef.current) wsRef.current.close();
         };
     }, [token, user]);
 
-    // Strict Sync on Window Focus
+    // Strict Sync on Window Focus (Updated logic)
     useEffect(() => {
         const handleFocus = () => {
             const now = Date.now();
-            // Throttle sync to once every 5 seconds to prevent spam
-            if (now - lastUpdate > 5000) {
-                console.log("Window focused, strictly syncing messages...");
+            // Reduced throttle on focus to ensure immediate responsiveness
+            if (now - lastUpdate > 1000) {
+                console.log("Window focused, syncing messages...");
                 if (wsRef.current?.readyState === WebSocket.OPEN) {
                     syncMessages();
                 } else if (token && user) {
@@ -323,7 +363,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
         window.addEventListener('focus', handleFocus);
         return () => window.removeEventListener('focus', handleFocus);
-    }, [token, user, lastUpdate]); // Dependencies matter for connect/syncMessages access
+    }, [token, user, lastUpdate]);
 
     const sendMessage = async (roomId: string, content: string, correlationId?: string) => {
         const cid = correlationId || `msg-${Date.now()}-${Math.random()}`;
@@ -358,6 +398,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 content,
                 correlation_id: cid
             }));
+
+            // Trigger throttled sync to ensure consistency (e.g. if we were offline before)
+            throttledSync();
         } else {
             console.log("WebSocket offline, message persisted as pending and will be synced later.");
             // Trigger background sync if valid

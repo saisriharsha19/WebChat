@@ -23,23 +23,6 @@ export function usePushNotifications() {
     const [subscription, setSubscription] = useState<PushSubscription | null>(null);
     const [permission, setPermission] = useState(Notification.permission);
 
-    // Initial check for existing subscription
-    useEffect(() => {
-        if ('serviceWorker' in navigator && 'PushManager' in window) {
-            navigator.serviceWorker.ready.then((registration) => {
-                registration.pushManager.getSubscription().then((sub) => {
-                    if (sub) {
-                        setSubscription(sub);
-                        setIsSubscribed(true);
-                        // We do NOT automatically resend to backend here to avoid spamming on every reload
-                        // The backend should persist it. 
-                        // However, if we wanted to be sure, we could sync it once per session or token refresh.
-                    }
-                });
-            });
-        }
-    }, []);
-
     const sendSubscriptionToBackend = useCallback(async (sub: PushSubscription) => {
         const keys = sub.toJSON().keys;
         if (!keys) return;
@@ -57,6 +40,22 @@ export function usePushNotifications() {
             console.error("Failed to send subscription to backend", error);
         }
     }, []);
+
+    // Initial check for existing subscription
+    useEffect(() => {
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+            navigator.serviceWorker.ready.then((registration) => {
+                registration.pushManager.getSubscription().then((sub) => {
+                    if (sub) {
+                        setSubscription(sub);
+                        setIsSubscribed(true);
+                        // Always sync with backend to ensure keys are fresh (fixes backend reset issue)
+                        sendSubscriptionToBackend(sub);
+                    }
+                });
+            });
+        }
+    }, [sendSubscriptionToBackend]);
 
     const subscribeToPush = useCallback(async () => {
         if (!('serviceWorker' in navigator)) return;
