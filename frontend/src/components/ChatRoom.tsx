@@ -79,7 +79,13 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
             if (Array.isArray(res)) {
                 if (res.length < 50) setHasMore(false);
                 if (res.length > 0) {
-                    await db.messages.bulkPut(res);
+                    // Convert ISO strings to Date objects before storing
+                    const formattedMessages = res.map((m: any) => ({
+                        ...m,
+                        created_at: new Date(m.created_at),
+                        updated_at: m.updated_at ? new Date(m.updated_at) : null
+                    }));
+                    await db.messages.bulkPut(formattedMessages);
                 }
             }
         } catch (error) {
@@ -254,8 +260,13 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         }
     };
 
-    const formatTime = (date: Date) => {
-        return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const formatTime = (date: Date | string) => {
+        try {
+            const d = new Date(date);
+            return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        } catch (e) {
+            return '';
+        }
     };
 
     return (
