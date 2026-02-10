@@ -86,11 +86,14 @@ async def sync_messages(
             # but currently we don't distinguish device IDs. 
             # For now, excluding own messages to prevent echoing back what we just sent/synced.
             query = query.filter(Message.sender_id != current_user.id)
+            
+            messages = query.order_by(Message.created_at.asc()).all()
         else:
             # Initial sync: Get last 1000 global for dashboard population
-            query = query.order_by(Message.created_at.desc()).limit(1000)
+            # We want the *latest* 1000, so we order desc, limit, then reverse list
+            messages = query.order_by(Message.created_at.desc()).limit(1000).all()
+            messages.reverse() # Make them chronological
             
-        messages = query.order_by(Message.created_at.asc()).all()
         new_messages = messages
         logger.info(f"Found {len(new_messages)} new messages for client")
     
