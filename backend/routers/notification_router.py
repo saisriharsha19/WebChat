@@ -37,7 +37,7 @@ async def subscribe(subscription: SubscriptionCreate, db: Session = Depends(get_
     db.commit()
     return {"message": "Subscribed successfully"}
 
-@router.post("/test")
+@router.api_route("/test", methods=["GET", "POST"])
 async def test_notification(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     send_push_notification(
         db, 

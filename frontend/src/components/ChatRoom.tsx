@@ -128,7 +128,12 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
     const messages = useMemo(() => {
         if (!rawMessages) return [];
         return rawMessages.map((msg: any) => {
-            // Find sender in room members
+            // Use existing sender if available (from backend fetch or previous hydration)
+            if (msg.sender && msg.sender.username) {
+                return msg as Message;
+            }
+
+            // Fallback: Find sender in room members
             const members = roomDetails?.members as RoomMember[] | undefined;
             const member = members?.find(m => m.user_id === msg.sender_id);
             return {

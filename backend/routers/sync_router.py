@@ -87,8 +87,8 @@ async def sync_messages(
             # For now, excluding own messages to prevent echoing back what we just sent/synced.
             query = query.filter(Message.sender_id != current_user.id)
         else:
-            # Initial sync: Get last 500 global for dashboard population
-            query = query.order_by(Message.created_at.desc()).limit(500)
+            # Initial sync: Get last 1000 global for dashboard population
+            query = query.order_by(Message.created_at.desc()).limit(1000)
             
         messages = query.order_by(Message.created_at.asc()).all()
         new_messages = messages
