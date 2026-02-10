@@ -31,8 +31,21 @@ connect_args = {}
 if "sqlite" in DATABASE_URL:
     connect_args = {"check_same_thread": False}
 
+from sqlalchemy.pool import NullPool
+
+engine_args = {
+    "connect_args": connect_args
+}
+
+if "postgresql" in DATABASE_URL:
+    # Use NullPool for PostgreSQL to work better with Supabase Transaction Pooler
+    # This prevents the application from holding onto connections unnecessarily
+    engine_args["poolclass"] = NullPool
+    # keeping the connection alive
+    engine_args["pool_pre_ping"] = True
+
 engine = create_engine(
-    DATABASE_URL, connect_args=connect_args
+    DATABASE_URL, **engine_args
 )
 
 # Enable foreign keys for SQLite
