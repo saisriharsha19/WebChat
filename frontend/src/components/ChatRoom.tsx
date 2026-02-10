@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { useWebSocket } from '../WebSocketContext';
 import { useCall } from '../CallContext';
 import { useAuth } from '../AuthContext';
@@ -106,26 +106,19 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
         }
     }, [roomId, initialLoadDone]);
 
+
     // Scroll Handler
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const { scrollTop } = e.currentTarget;
-        if (scrollTop === 0 && hasMore && !isLoadingMore && (rawMessages?.length || 0) >= 50) {
-            // Save scroll height to maintain position
-            const container = e.currentTarget;
-            const oldHeight = container.scrollHeight;
+        // Trigger when close to top (< 50px)
+        if (scrollTop < 50 && hasMore && !isLoadingMore && (rawMessages?.length || 0) >= 50) {
+
+            // Save current height to restore relative position later
+            prevScrollHeightRef.current = e.currentTarget.scrollHeight;
+            isFetchingHistoryRef.current = true;
 
             fetchMessages(rawMessages?.length || 0).then(() => {
-                // Restore scroll position
-                // We need to wait for UI update (LiveQuery).
-                // Actually LiveQuery is async. This might jump. 
-                // A better detail is needed here but let's start with basic fetch.
-                // To prevent jump, we usually use useLayoutEffect or ResizeObserver, 
-                // but just fetching is the core requirement.
-                // Let's rely on React's reconciliation or user manual scroll for now for MVP.
-                requestAnimationFrame(() => {
-                    const newHeight = container.scrollHeight;
-                    container.scrollTop = newHeight - oldHeight;
-                });
+                // Done fetching, LiveQuery will update messages and trigger layout effect
             });
         }
     };
@@ -148,6 +141,24 @@ export default function ChatRoom({ roomId, onBack }: ChatRoomProps) {
             } as Message;
         });
     }, [rawMessages, roomDetails]);
+
+    // Scroll Anchoring (Moved after messages definition)
+    const prevScrollHeightRef = useRef<number>(0);
+    const isFetchingHistoryRef = useRef(false);
+
+    useLayoutEffect(() => {
+        if (isFetchingHistoryRef.current && scrollContainerRef.current) {
+            const container = scrollContainerRef.current;
+            const newHeight = container.scrollHeight;
+            const diff = newHeight - prevScrollHeightRef.current;
+
+            // Restore position: scroll down by the amount of content added
+            if (diff > 0) {
+                container.scrollTop = diff;
+            }
+            isFetchingHistoryRef.current = false;
+        }
+    }, [messages]); // Run when messages update
 
     useEffect(() => {
         joinRoom(roomId);
