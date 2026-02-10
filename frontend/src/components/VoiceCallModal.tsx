@@ -69,6 +69,8 @@ export function VoiceCallModal() {
     }, [remoteStream]);
 
     // Handle Ringtone
+    const [ringtoneError, setRingtoneError] = useState(false);
+
     useEffect(() => {
         const handleRingtone = async () => {
             if (callState.status === 'incoming') {
@@ -78,14 +80,20 @@ export function VoiceCallModal() {
                         ringtoneRef.current.currentTime = 0;
                         await ringtoneRef.current.play();
                         console.log("Ringtone started playing");
-                    } catch (e) {
+                        setRingtoneError(false);
+                    } catch (e: any) {
                         console.error("Failed to play ringtone:", e);
+                        // If autoplay is blocked, we set state to show a "Click to allow" UI or just rely on the Answer button
+                        if (e.name === 'NotAllowedError') {
+                            setRingtoneError(true);
+                        }
                     }
                 }
             } else {
                 if (ringtoneRef.current) {
                     ringtoneRef.current.pause();
                     ringtoneRef.current.currentTime = 0;
+                    setRingtoneError(false);
                 }
             }
         };
@@ -133,7 +141,11 @@ export function VoiceCallModal() {
                             </div>
 
                             <h3 className="text-txt-primary text-xl font-semibold mb-2">{peerName}</h3>
-                            <p className="text-txt-tertiary text-sm mb-8">Incoming Voice Call...</p>
+                            <p className="text-txt-tertiary text-sm mb-2">Incoming Voice Call...</p>
+                            {ringtoneError && (
+                                <p className="text-accent text-xs mb-6 animate-pulse">Click Answer to enable audio</p>
+                            )}
+                            {!ringtoneError && <div className="mb-6"></div>}
 
                             <div className="flex gap-6 justify-center">
                                 <button

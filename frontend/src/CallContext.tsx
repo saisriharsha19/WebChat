@@ -411,12 +411,17 @@ export function CallProvider({ children }: { children: ReactNode }) {
             monitoringIntervalRef.current = null;
         }
 
+        // Only attempt to send signal if we have a user to send to AND we think we are connected
         if (callState.userId && ['connected', 'calling', 'incoming', 'busy'].includes(callState.status)) {
-            sendSignal({
-                type: 'call_end',
-                target_user_id: callState.userId,
-                call_id: callState.callId
-            });
+            try {
+                sendSignal({
+                    type: 'call_end',
+                    target_user_id: callState.userId,
+                    call_id: callState.callId
+                });
+            } catch (e) {
+                console.warn("Failed to send call_end signal (likely disconnected):", e);
+            }
         }
 
         setCallState({ status: 'idle' });
@@ -426,8 +431,13 @@ export function CallProvider({ children }: { children: ReactNode }) {
         qualityHistoryRef.current = [];
         currentBitrateRef.current = BITRATE_PRESETS.good;
 
+        // Force close peer connection
         if (peerConnection.current) {
-            peerConnection.current.close();
+            try {
+                peerConnection.current.close();
+            } catch (e) {
+                // Ignore close errors
+            }
             peerConnection.current = null;
         }
 

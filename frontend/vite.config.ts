@@ -43,22 +43,6 @@ export default defineConfig({
                         type: 'image/png'
                     }
                 ],
-                screenshots: [
-                    {
-                        src: '/screenshot-desktop.png',
-                        sizes: '1920x1080',
-                        type: 'image/png',
-                        form_factor: 'wide',
-                        label: 'Desktop Dashboard'
-                    },
-                    {
-                        src: '/screenshot-mobile.png',
-                        sizes: '1080x1920',
-                        type: 'image/png',
-                        form_factor: 'narrow',
-                        label: 'Mobile Chat'
-                    }
-                ],
                 shortcuts: [
                     {
                         name: 'Friends',
