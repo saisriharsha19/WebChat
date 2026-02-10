@@ -341,7 +341,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     updated_at: timestamp,
                     is_deleted: false,
                     status: 'pending',
-                    temp_id: cid
+                    temp_id: cid,
+                    id: cid // Fix for DataError: Key path "id" failure
                 });
                 setLastUpdate(Date.now()); // Trigger UI update if needed
             } catch (e) {
