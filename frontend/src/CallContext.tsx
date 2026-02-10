@@ -176,9 +176,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
                 case 'call_handled': // Answered/Rejected elsewhere
                     if (callState.callId && data.call_id && data.call_id !== callState.callId) return;
-                    endCall();
-                    setCallState({ status: 'idle' });
                     console.log('Call handled on another device:', data.reason);
+                    endCall(false);
                     break;
 
                 case 'ice_candidate':
@@ -397,10 +396,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
                 call_id: callState.callId
             });
         }
-        endCall();
+        endCall(false);
     };
 
-    const endCall = () => {
+    const endCall = (notifyRemote = true) => {
         if (callTimeoutRef.current) {
             clearTimeout(callTimeoutRef.current);
             callTimeoutRef.current = null;
@@ -412,7 +411,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         }
 
         // Only attempt to send signal if we have a user to send to AND we think we are connected
-        if (callState.userId && ['connected', 'calling', 'incoming', 'busy'].includes(callState.status)) {
+        if (notifyRemote && callState.userId && ['connected', 'calling', 'incoming', 'busy'].includes(callState.status)) {
             try {
                 sendSignal({
                     type: 'call_end',
