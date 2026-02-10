@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode, useC
 import { useAuth } from './AuthContext.tsx';
 import { API_ENDPOINTS, fetchWithAuth } from './lib/api.ts';
 import { db } from './lib/db.ts';
+import { useConnectivity } from './hooks/useConnectivity.ts';
 
 type WSMessage = {
     type: string;
@@ -30,6 +31,7 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
     const { token, user } = useAuth();
+    const isOnline = useConnectivity();
     const wsRef = useRef<WebSocket | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
     const [lastUpdate, setLastUpdate] = useState(0);
@@ -57,7 +59,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    const syncMessages = async () => {
+    const syncMessages = useCallback(async () => {
+        if (!navigator.onLine) {
+            console.log("Skipping sync, offline");
+            return;
+        }
+
         try {
             // 1. Get offline messages (pending)
             const offlineMessages = await db.messages.where('status').equals('pending').toArray();
@@ -137,12 +144,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             });
 
             setLastUpdate(Date.now());
-            console.log("Sync completed");
+            // console.log("Sync completed");
 
         } catch (err) {
             console.error("Sync failed:", err);
         }
-    };
+    }, []); // No dependencies needed as it uses globals/db, effectively static
 
     // Throttled Sync Implementation
     const lastSyncTriggerRef = useRef<number>(0);
@@ -166,22 +173,22 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 }, THROTTLE_MS - timeSinceLastSync);
             }
         }
-    }, []);
+    }, [syncMessages]);
 
-    // Periodic Sync (Every 60 seconds) to ensure freshness even if idle
+    // Periodic Sync (Every 60 seconds)
     useEffect(() => {
         const intervalId = setInterval(() => {
-            if (token && user && (wsRef.current?.readyState === WebSocket.OPEN || document.visibilityState === 'visible')) {
-                console.log("Periodic background sync...");
+            if (token && user && isOnline && (wsRef.current?.readyState === WebSocket.OPEN || document.visibilityState === 'visible')) {
+                // console.log("Periodic background sync...");
                 syncMessages();
             }
-        }, 60000); // 60 seconds
+        }, 60000);
 
         return () => clearInterval(intervalId);
-    }, [token, user]);
+    }, [token, user, isOnline, syncMessages]);
 
-    const connect = () => {
-        if (!token) return;
+    const connect = useCallback(() => {
+        if (!token || !isOnline) return;
         if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
         try {
@@ -210,7 +217,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     const data: WSMessage = JSON.parse(event.data);
 
                     if (data.type === 'message' || data.type === 'new_message') {
-                        // Trigger throttled sync to ensure we catch up on any missing context
+                        // Trigger throttled sync
                         throttledSync();
 
                         // Handle chat messages
@@ -241,7 +248,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         });
                         setLastUpdate(Date.now());
                     } else if (['call_offer', 'call_answer', 'call_reject', 'call_ended', 'ice_candidate', 'call_rejected', 'call_handled'].includes(data.type)) {
-                        // Dispatch to signal handlers (CallContext)
                         signalHandlersRef.current.forEach(handler => handler(data));
                     } else if (data.type === 'pong') {
                         // Alive
@@ -272,12 +278,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     } else if (['friend_request', 'friend_accepted', 'friend_request_rejected'].includes(data.type)) {
                         setLastFriendUpdate(Date.now());
 
-                        // Show notification if supported
                         if (Notification.permission === 'granted' && document.hidden) {
                             if (data.type === 'friend_request') {
                                 new Notification('New Friend Request', {
                                     body: `${data.sender.username} sent you a friend request`,
-                                    icon: '/pwa-192x192.png' // assumption
+                                    icon: '/pwa-192x192.png'
                                 });
                             } else if (data.type === 'friend_accepted') {
                                 new Notification('Friend Request Accepted', {
@@ -292,7 +297,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         if (existing) {
                             const newReceipt = { id: `rr-${Date.now()}-${Math.random()}`, message_id, user_id, read_at };
                             const receipts = existing.read_receipts || [];
-                            // Avoid duplicates
                             if (!receipts.find((r: any) => r.user_id === user_id)) {
                                 await db.messages.put({
                                     ...existing,
@@ -307,8 +311,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 }
             };
 
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
+            ws.onerror = () => {
+                // console.error('WebSocket error:');
             };
 
             ws.onclose = () => {
@@ -318,7 +322,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 setOnlineUsers(new Map());
                 if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
 
-                if (token) {
+                if (token && isOnline) {
                     const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttemptsRef.current));
                     reconnectAttemptsRef.current++;
                     reconnectTimeoutRef.current = window.setTimeout(() => {
@@ -331,10 +335,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             console.error('Failed to create WebSocket:', err);
             setConnectionStatus('disconnected');
         }
-    };
+    }, [token, isOnline, syncMessages, throttledSync]); // Added dependencies
 
     useEffect(() => {
-        if (token && user) {
+        if (token && user && isOnline) {
             connect();
         }
 
@@ -344,32 +348,30 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
             if (wsRef.current) wsRef.current.close();
         };
-    }, [token, user]);
+    }, [token, user, isOnline, connect]);
 
-    // Strict Sync on Window Focus (Updated logic)
+    // Strict Sync on Window Focus
     useEffect(() => {
         const handleFocus = () => {
             const now = Date.now();
-            // Reduced throttle on focus to ensure immediate responsiveness
             if (now - lastUpdate > 1000) {
                 console.log("Window focused, syncing messages...");
                 if (wsRef.current?.readyState === WebSocket.OPEN) {
                     syncMessages();
-                } else if (token && user) {
-                    connect();
+                } else if (token && user && isOnline) {
+                    connect(); // Reconnect if needed
                 }
             }
         };
 
         window.addEventListener('focus', handleFocus);
         return () => window.removeEventListener('focus', handleFocus);
-    }, [token, user, lastUpdate]);
+    }, [token, user, lastUpdate, isOnline, syncMessages, connect]);
 
-    const sendMessage = async (roomId: string, content: string, correlationId?: string) => {
+    const sendMessage = useCallback(async (roomId: string, content: string, correlationId?: string) => {
         const cid = correlationId || `msg-${Date.now()}-${Math.random()}`;
         const timestamp = new Date();
 
-        // 1. Optimistic Persistence
         if (user) {
             try {
                 await db.messages.add({
@@ -382,15 +384,14 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     is_deleted: false,
                     status: 'pending',
                     temp_id: cid,
-                    id: cid // Fix for DataError: Key path "id" failure
+                    id: cid
                 });
-                setLastUpdate(Date.now()); // Trigger UI update if needed
+                setLastUpdate(Date.now());
             } catch (e) {
                 console.error("Failed to save optimistic message", e);
             }
         }
 
-        // 2. Send via WebSocket if open
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'message',
@@ -398,39 +399,37 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 content,
                 correlation_id: cid
             }));
-
-            // Trigger throttled sync to ensure consistency (e.g. if we were offline before)
             throttledSync();
         } else {
             console.log("WebSocket offline, message persisted as pending and will be synced later.");
-            // Trigger background sync if valid
+            // Background sync
             if ('serviceWorker' in navigator && 'SyncManager' in window) {
                 navigator.serviceWorker.ready.then(registration => {
                     return registration.sync.register('entropy-queue');
                 }).catch(err => console.log("Bg Sync registration failed", err));
             }
         }
-    };
+    }, [user, throttledSync]);
 
-    const joinRoom = (roomId: string) => {
+    const joinRoom = useCallback((roomId: string) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'join_room',
                 room_id: roomId,
             }));
         }
-    };
+    }, []);
 
-    const leaveRoom = (roomId: string) => {
+    const leaveRoom = useCallback((roomId: string) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'leave_room',
                 room_id: roomId,
             }));
         }
-    };
+    }, []);
 
-    const markAsRead = (messageId: string, roomId: string) => {
+    const markAsRead = useCallback((messageId: string, roomId: string) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'read_receipt',
@@ -438,7 +437,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 room_id: roomId,
             }));
         }
-    };
+    }, []);
 
     return (
         <WebSocketContext.Provider
@@ -463,8 +462,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
 export function useWebSocket() {
     const context = useContext(WebSocketContext);
-    if (!context) {
-        throw new Error('useWebSocket must be used within WebSocketProvider');
+    if (context === undefined) {
+        throw new Error('useWebSocket must be used within a WebSocketProvider');
     }
     return context;
 }
