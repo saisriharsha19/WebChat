@@ -27,6 +27,12 @@ elif not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# FORCE Supabase Transaction Pooler (Port 6543) if using pooler hostname
+# This fixes the "MaxClientsInSessionMode" error by using Transaction Mode
+if "pooler.supabase.com" in DATABASE_URL and ":5432" in DATABASE_URL:
+    print("⚠️ Detected Supabase Pooler on Port 5432 (Session Mode). Switching to Port 6543 (Transaction Mode) to avoid connection limits.")
+    DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
+
 connect_args = {}
 if "sqlite" in DATABASE_URL:
     connect_args = {"check_same_thread": False}
