@@ -24,104 +24,108 @@ async def sync_messages(
     """
     Sync offline messages from client to server and get new messages
     """
-    try:
-        synced_messages = []
-        
-        logger.info(f"Sync request from user {current_user.id} ({current_user.username})")
-        if sync_data.last_sync_time:
-            logger.info(f"Client last_sync_time: {sync_data.last_sync_time}")
-
-    # Process and save offline messages from client
+    synced_messages = []
+    
+    # 1. Process offline messages from client
     for msg in sync_data.messages:
-        # Check for duplicates (Idempotency) based on content, room, sender, and exact timestamp
-        existing_msg = db.query(Message).filter(
-            Message.sender_id == current_user.id,
-            Message.room_id == msg.room_id,
-            Message.content == msg.content,
-            Message.created_at == msg.client_timestamp
-        ).first()
-
-        if existing_msg:
-            synced_messages.append(existing_msg)
-            continue
-
-        new_message = Message(
-            content=msg.content,
-            sender_id=current_user.id,
-            room_id=msg.room_id,
-            message_type=msg.message_type,
-            created_at=msg.client_timestamp
-        )
-        db.add(new_message)
-        db.flush()  # Get ID without committing
-        synced_messages.append(new_message)
+        try:
+            # Check if message already exists (duplicate prevention)
+            existing = db.query(Message).filter(
+                Message.sender_id == current_user.id,
+                Message.room_id == msg.room_id,
+                Message.content == msg.content
+            ).order_by(Message.created_at.desc()).first()
+            
+            if existing:
+                time_delta = datetime.now(timezone.utc) - existing.created_at.replace(tzinfo=timezone.utc)
+                if time_delta.total_seconds() < 2:
+                    # Likely duplicate, skip
+                    synced_messages.append({
+                        "temp_id": msg.temp_id,
+                        "server_id": existing.id,
+                        "status": "duplicate"
+                    })
+                    continue
+            
+            # Create new message
+            new_message = Message(
+                content=msg.content,
+                sender_id=current_user.id,
+                room_id=msg.room_id,
+                message_type=msg.message_type,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(new_message)
+            db.flush()
+            
+            synced_messages.append({
+                "temp_id": msg.temp_id,
+                "server_id": new_message.id,
+                "status": "synced"
+            })
+            
+            # Broadcast to room members via WebSocket
+            from routers.websocket_router import manager
+            await manager.broadcast_to_room(msg.room_id, {
+                "type": "new_message",
+                "message": {
+                    "id": new_message.id,
+                    "content": new_message.content,
+                    "sender_id": new_message.sender_id,
+                    "room_id": new_message.room_id,
+                    "message_type": new_message.message_type,
+                    "created_at": new_message.created_at.replace(tzinfo=timezone.utc).isoformat(),
+                    "sender": {
+                        "id": current_user.id,
+                        "username": current_user.username,
+                        "display_name": current_user.display_name,
+                        "avatar_url": current_user.avatar_url
+                    }
+                }
+            })
+        except Exception as msg_error:
+            logger.error(f"Error processing offline message: {msg_error}", exc_info=True)
+            synced_messages.append({
+                "temp_id": msg.temp_id,
+                "status": "error",
+                "error": str(msg_error)
+            })
     
     db.commit()
-    logger.info(f"Processed {len(sync_data.messages)} offline messages. Synced: {len(synced_messages)}")
     
-    # Get new messages since last sync
-    new_messages = []
+    # 2. Get new messages since last sync  
+    last_sync = None
+    if sync_data.last_sync_time:
+        last_sync = datetime.fromisoformat(sync_data.last_sync_time.replace('Z', '+00:00'))
     
-    # Get all rooms user is a member of
-    user_rooms = db.query(RoomMember.room_id).filter(
-        RoomMember.user_id == current_user.id
-    ).all()
-    room_ids = [r[0] for r in user_rooms]
+    # Get user's rooms
+    room_ids = [rm.room_id for rm in db.query(RoomMember).filter(RoomMember.user_id == current_user.id).all()]
     
-    if room_ids:
-        query = db.query(Message).filter(Message.room_id.in_(room_ids))
-        
-        if sync_data.last_sync_time:
-            # IMPORTANT: Ensure last_sync_time is naive UTC if DB uses naive UTC
-            last_sync = sync_data.last_sync_time
-            if last_sync.tzinfo is not None:
-                # Convert to UTC and then make naive
-                last_sync = last_sync.astimezone(timezone.utc).replace(tzinfo=None)
-            
-            logger.info(f"Querying messages since: {last_sync}")
-            
-            # Normal sync: Get everything since last check
-            query = query.filter(Message.created_at > last_sync)
-            
-            # Note: We DO want own messages if they were sent from another device.
-            # The client-side DB (Dexie) should handle deduplication by ID.
-            # So we typically DO NOT filter out current_user.id here anymore for multi-device support.
-            # However, to save bandwidth/processing, we *could* rely on the client knowing its own state,
-            # but a "sync" should be a source of truth. 
-            # If we send it, the client 'put' will just overwrite/update it, which is fine.
-            
-            messages = query.order_by(Message.created_at.asc()).all()
-        else:
-            # Initial sync: Get last 100 messages to prevent timeout
-            # Reduced from 1000 for reliability - client can paginate for more
-            messages = query.order_by(Message.created_at.desc()).limit(100).all()
-            messages.reverse() # Make them chronological
-            
-        new_messages = messages
-        logger.info(f"Found {len(new_messages)} new messages for client")
+    # Fetch new messages (reduced from 1000 to 100 to prevent timeouts)
+    query = db.query(Message).filter(Message.room_id.in_(room_ids))
+    if last_sync:
+        query = query.filter(Message.created_at > last_sync)
     
-        # Fix timezones for serialization (pydantic will use these)
-        # Ensure all return dates are timezone-aware (UTC)
-        for msg in synced_messages:
-            if msg.created_at and msg.created_at.tzinfo is None:
-                msg.created_at = msg.created_at.replace(tzinfo=timezone.utc)
-            if msg.updated_at and msg.updated_at.tzinfo is None:
-                msg.updated_at = msg.updated_at.replace(tzinfo=timezone.utc)
-                
-        for msg in new_messages:
-            if msg.created_at and msg.created_at.tzinfo is None:
-                msg.created_at = msg.created_at.replace(tzinfo=timezone.utc)
-            if msg.updated_at and msg.updated_at.tzinfo is None:
-                msg.updated_at = msg.updated_at.replace(tzinfo=timezone.utc)
-        
-        return SyncResponse(
-            synced_messages=synced_messages,
-            new_messages=new_messages
-        )
+    new_messages = query.order_by(Message.created_at.desc()).limit(100).all()
     
-    except Exception as e:
-        logger.error(f"Sync failed for user {current_user.id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Sync failed: {str(e)}"
-        )
+    messages_data = []
+    for msg in new_messages:
+        messages_data.append({
+            "id": msg.id,
+            "content": msg.content,
+            "sender_id": msg.sender_id,
+            "room_id": msg.room_id,
+            "message_type": msg.message_type,
+            "created_at": msg.created_at.replace(tzinfo=timezone.utc).isoformat(),
+            "sender": {
+                "id": msg.sender.id,
+                "username": msg.sender.username,
+                "display_name": msg.sender.display_name,
+                "avatar_url": msg.sender.avatar_url
+            } if msg.sender else None
+        })
+    
+    return SyncResponse(
+        synced_messages=synced_messages,
+        new_messages=messages_data
+    )
