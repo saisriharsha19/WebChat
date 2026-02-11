@@ -392,30 +392,40 @@ class ConnectionManager:
                     continue
                 await self.send_to_user(user_id, message)
                 
-    async def notify_friends_status(self, user_id: str, status: str, db: Session):
-         from models import FriendRequest, FriendRequestStatus
-         from sqlalchemy import or_, and_
-        
-         def get_friends():
-            return db.query(User).join(
-                FriendRequest,
-                or_(
-                    and_(FriendRequest.sender_id == User.id, FriendRequest.receiver_id == user_id),
-                    and_(FriendRequest.receiver_id == User.id, FriendRequest.sender_id == user_id)
-                )
-            ).filter(
-                FriendRequest.status == FriendRequestStatus.ACCEPTED
-            ).all()
-        
-         friends = await asyncio.to_thread(get_friends)
-         message = {
-            "type": "user_status",
-            "user_id": user_id,
-            "status": status,
-            "last_seen": datetime.now(timezone.utc).isoformat()
-         }
-         for friend in friends:
-            await self.send_to_user(friend.id, message)
+    async def notify_friends_status(self, user_id: str, status: str):
+         """
+         Notify friends of a user's status change.
+         Creates its own database session to avoid concurrent access issues.
+         """
+         notify_db = SessionLocal()
+         try:
+             from models import FriendRequest, FriendRequestStatus
+             from sqlalchemy import or_, and_
+            
+             def get_friends():
+                return notify_db.query(User).join(
+                    FriendRequest,
+                    or_(
+                        and_(FriendRequest.sender_id == User.id, FriendRequest.receiver_id == user_id),
+                        and_(FriendRequest.receiver_id == User.id, FriendRequest.sender_id == user_id)
+                    )
+                ).filter(
+                    FriendRequest.status == FriendRequestStatus.ACCEPTED
+                ).all()
+            
+             friends = await asyncio.to_thread(get_friends)
+             message = {
+                "type": "user_status",
+                "user_id": user_id,
+                "status": status,
+                "last_seen": datetime.now(timezone.utc).isoformat()
+             }
+             for friend in friends:
+                await self.send_to_user(friend.id, message)
+         except Exception as e:
+             print(f"Failed to notify friends status: {e}")
+         finally:
+             notify_db.close()
 
 manager = ConnectionManager()
 
@@ -487,7 +497,7 @@ async def websocket_chat(websocket: WebSocket, token: str):
             db.commit()
             
         await asyncio.to_thread(update_status)
-        asyncio.create_task(manager.notify_friends_status(user_id, "online", db))
+        asyncio.create_task(manager.notify_friends_status(user_id, "online"))
         
         await websocket.send_json({
             "type": "connected",
@@ -545,7 +555,8 @@ async def websocket_chat(websocket: WebSocket, token: str):
                     except Exception:
                         db.rollback()
                 await asyncio.to_thread(set_offline)
-                await manager.notify_friends_status(user_id, "offline", db)
+                # notify_friends_status creates its own session
+                asyncio.create_task(manager.notify_friends_status(user_id, "offline"))
             
     except Exception as e:
         print(f"WebSocket error: {e}")
@@ -556,4 +567,4 @@ async def websocket_chat(websocket: WebSocket, token: str):
             db.rollback()  # Rollback any pending transactions
         except Exception:
             pass
-        await asyncio.to_thread(db.close)
+        db.close()  # Synchronous close - no asyncio.to_thread needed
