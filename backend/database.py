@@ -57,6 +57,7 @@ if "postgresql" in DATABASE_URL:
     engine_args["pool_pre_ping"] = True   # Health check before using connection
     engine_args["pool_timeout"] = 30      # Wait max 30s for available connection
     engine_args["pool_use_lifo"] = True   # Use LIFO to recycle connections more frequently
+    engine_args["use_native_hstore"] = False  # Disable hstore check that causes SSL errors on cold start
     print(f"✓ Configured PostgreSQL connection pool: size=5, max_overflow=10, recycle=300s")
 
 engine = create_engine(
@@ -69,6 +70,7 @@ if "sqlite" in DATABASE_URL:
     def _fk_pragma_on_connect(dbapi_con, con_record):
         dbapi_con.execute('pragma foreign_keys=ON')
     event.listen(engine, 'connect', _fk_pragma_on_connect)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

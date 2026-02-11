@@ -52,7 +52,8 @@ async def send_friend_request(
     # Real-time notification
     from routers.websocket_router import manager
     try:
-        await manager.send_personal_message(
+        await manager.send_to_user(
+            user_id,
             {
                 "type": "friend_request",
                 "request": {
@@ -68,8 +69,7 @@ async def send_friend_request(
                     "display_name": current_user.display_name,
                     "avatar_url": current_user.avatar_url
                 }
-            },
-            user_id
+            }
         )
     except Exception as e:
         print(f"Failed to send WS notification: {e}")
@@ -108,7 +108,8 @@ async def respond_to_friend_request(
     try:
         if action == "accept":
             # Notify sender they have a new friend
-            await manager.send_personal_message(
+            await manager.send_to_user(
+                request.sender_id,
                 {
                     "type": "friend_accepted",
                     "friend": {
@@ -116,30 +117,16 @@ async def respond_to_friend_request(
                         "username": current_user.username,
                         "display_name": current_user.display_name,
                         "avatar_url": current_user.avatar_url,
-                        "is_online": True # rough guess, or check manager
+                        "is_online": True
                     }
-                },
-                request.sender_id
-            )
-            # Notify receiver (current user) to update their list/UI
-            await manager.send_personal_message(
-                {
-                    "type": "friend_accepted",
-                    "friend": { # We need the sender's info
-                        "id": request.sender_id,
-                        # Ideally we fetch sender details. 
-                        # relying on frontend to re-fetch or we send minimal data?
-                        # Let's simple-fetch sender
-                        # OR just send event "refresh_friends"
-                    }
-                },
-                current_user.id
+                }
             )
             
-            # Better approach: Fetch sender details to send full object
+            # Fetch sender details to send full object to current user
             sender = db.query(User).filter(User.id == request.sender_id).first()
             if sender:
-                await manager.send_personal_message(
+                await manager.send_to_user(
+                    current_user.id,
                     {
                         "type": "friend_accepted",
                         "friend": {
@@ -149,19 +136,17 @@ async def respond_to_friend_request(
                             "avatar_url": sender.avatar_url,
                             "is_online": sender.id in manager.active_connections
                         }
-                    },
-                    current_user.id
+                    }
                 )
 
         elif action == "reject":
-            # Notify sender? Maybe not needed for reject, but updating their UI from "pending" to "rejected" or "none" is good
-             await manager.send_personal_message(
+            await manager.send_to_user(
+                request.sender_id,
                 {
                     "type": "friend_request_rejected",
                     "request_id": request.id,
                     "receiver_id": current_user.id
-                },
-                request.sender_id
+                }
             )
 
     except Exception as e:
