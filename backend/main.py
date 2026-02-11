@@ -66,8 +66,25 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Error dropping database: {e}")
 
-    # Create database tables if they don't exist
-    Base.metadata.create_all(bind=engine)
+    # Create database tables if they don't exist - with retry logic for cold starts
+    max_retries = 5
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            Base.metadata.create_all(bind=engine)
+            print(f"✓ Database initialized successfully")
+            break
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"⚠️ Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                print(f"   Retrying in {retry_delay}s...")
+                import asyncio
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                print(f"❌ Database connection failed after {max_retries} attempts")
+                raise
     
     # Initialize System Settings (Instance ID)
     from database import SessionLocal
