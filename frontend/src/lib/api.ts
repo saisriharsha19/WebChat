@@ -59,7 +59,18 @@ export interface ApiError {
     detail: string;
 }
 
+// Circuit breaker state
+let consecutiveFailures = 0;
+const MAX_FAILURES = 5;
+const CIRCUIT_OPEN_DURATION = 30000; // 30 seconds
+let circuitOpenUntil = 0;
+
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
+    // Circuit breaker check
+    if (Date.now() < circuitOpenUntil) {
+        throw new Error('Service temporarily unavailable (circuit breaker open). Please try again later.');
+    }
+
     const token = localStorage.getItem('access_token');
 
     const headers: any = {
@@ -72,43 +83,93 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
         headers['Content-Type'] = 'application/json';
     }
 
+    // Add correlation ID for tracing
+    const correlationId = `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    headers['X-Correlation-ID'] = correlationId;
+
     const MAX_RETRIES = 3;
     const BASE_DELAY = 1000;
+    const TIMEOUT_MS = 30000; // 30 second timeout
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
         try {
             const response = await fetch(url, {
                 ...options,
                 headers,
+                signal: controller.signal,
             });
 
-            // If successful or client error (4xx), return immediately (don't retry 4xx except maybe 408/429 but keeping simple)
-            // Retry on server errors (5xx)
+            clearTimeout(timeoutId);
+
+            // Success - reset circuit breaker
             if (response.ok) {
+                consecutiveFailures = 0;
                 return response.json();
             }
 
+            // Server error - retry
             if (response.status >= 500 && attempt < MAX_RETRIES) {
-                // Server error, retry
-                const delay = BASE_DELAY * Math.pow(2, attempt);
-                console.warn(`Request failed with ${response.status}, retrying in ${delay}ms...`);
+                const delay = BASE_DELAY * Math.pow(2, attempt) + Math.random() * 1000; // Add jitter
+                console.warn(`Request failed with ${response.status}, retrying in ${Math.round(delay)}ms... (attempt ${attempt + 1}/${MAX_RETRIES})`);
                 await new Promise(r => setTimeout(r, delay));
                 continue;
             }
 
-            // If we are here, it's an error we shouldn't retry or we ran out of retries
-            const error: ApiError = await response.json().catch(() => ({ detail: `Error ${response.status}` }));
+            // Client error or max retries - fail immediately
+            const error: ApiError = await response.json().catch(() => ({
+                detail: `HTTP ${response.status}: ${response.statusText}`
+            }));
+
+            // Don't count 4xx as circuit breaker failures (likely user errors)
+            if (response.status >= 500) {
+                consecutiveFailures++;
+                if (consecutiveFailures >= MAX_FAILURES) {
+                    circuitOpenUntil = Date.now() + CIRCUIT_OPEN_DURATION;
+                    console.error('Circuit breaker opened due to repeated failures');
+                }
+            }
+
             throw new Error(error.detail);
 
         } catch (err: any) {
-            // Network errors (fetch failed entirely) should be retried
-            if (attempt < MAX_RETRIES) {
-                const delay = BASE_DELAY * Math.pow(2, attempt);
-                console.warn(`Network request failed (${err.message}), retrying in ${delay}ms...`);
+            clearTimeout(timeoutId);
+
+            // Timeout error
+            if (err.name === 'AbortError') {
+                if (attempt < MAX_RETRIES) {
+                    const delay = BASE_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
+                    console.warn(`Request timeout, retrying in ${Math.round(delay)}ms... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue;
+                }
+                consecutiveFailures++;
+                if (consecutiveFailures >= MAX_FAILURES) {
+                    circuitOpenUntil = Date.now() + CIRCUIT_OPEN_DURATION;
+                }
+                throw new Error('Request timeout - server not responding');
+            }
+
+            // Network error - retry
+            if (attempt < MAX_RETRIES && (err.message.includes('fetch') || err.message.includes('network'))) {
+                const delay = BASE_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
+                console.warn(`Network error (${err.message}), retrying in ${Math.round(delay)}ms...`);
                 await new Promise(r => setTimeout(r, delay));
                 continue;
             }
+
+            // Circuit breaker for network failures too
+            consecutiveFailures++;
+            if (consecutiveFailures >= MAX_FAILURES) {
+                circuitOpenUntil = Date.now() + CIRCUIT_OPEN_DURATION;
+                console.error('Circuit breaker opened due to repeated failures');
+            }
+
             throw err;
         }
     }
+
+    throw new Error('Maximum retry attempts exceeded');
 }

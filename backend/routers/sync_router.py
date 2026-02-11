@@ -24,11 +24,12 @@ async def sync_messages(
     """
     Sync offline messages from client to server and get new messages
     """
-    synced_messages = []
-    
-    logger.info(f"Sync request from user {current_user.id} ({current_user.username})")
-    if sync_data.last_sync_time:
-        logger.info(f"Client last_sync_time: {sync_data.last_sync_time}")
+    try:
+        synced_messages = []
+        
+        logger.info(f"Sync request from user {current_user.id} ({current_user.username})")
+        if sync_data.last_sync_time:
+            logger.info(f"Client last_sync_time: {sync_data.last_sync_time}")
 
     # Process and save offline messages from client
     for msg in sync_data.messages:
@@ -91,29 +92,36 @@ async def sync_messages(
             
             messages = query.order_by(Message.created_at.asc()).all()
         else:
-            # Initial sync: Get last 1000 global for dashboard population
-            # We want the *latest* 1000, so we order desc, limit, then reverse list
-            messages = query.order_by(Message.created_at.desc()).limit(1000).all()
+            # Initial sync: Get last 100 messages to prevent timeout
+            # Reduced from 1000 for reliability - client can paginate for more
+            messages = query.order_by(Message.created_at.desc()).limit(100).all()
             messages.reverse() # Make them chronological
             
         new_messages = messages
         logger.info(f"Found {len(new_messages)} new messages for client")
     
-    # Fix timezones for serialization (pydantic will use these)
-    # Ensure all return dates are timezone-aware (UTC)
-    for msg in synced_messages:
-        if msg.created_at and msg.created_at.tzinfo is None:
-            msg.created_at = msg.created_at.replace(tzinfo=timezone.utc)
-        if msg.updated_at and msg.updated_at.tzinfo is None:
-            msg.updated_at = msg.updated_at.replace(tzinfo=timezone.utc)
-            
-    for msg in new_messages:
-        if msg.created_at and msg.created_at.tzinfo is None:
-            msg.created_at = msg.created_at.replace(tzinfo=timezone.utc)
-        if msg.updated_at and msg.updated_at.tzinfo is None:
-            msg.updated_at = msg.updated_at.replace(tzinfo=timezone.utc)
+        # Fix timezones for serialization (pydantic will use these)
+        # Ensure all return dates are timezone-aware (UTC)
+        for msg in synced_messages:
+            if msg.created_at and msg.created_at.tzinfo is None:
+                msg.created_at = msg.created_at.replace(tzinfo=timezone.utc)
+            if msg.updated_at and msg.updated_at.tzinfo is None:
+                msg.updated_at = msg.updated_at.replace(tzinfo=timezone.utc)
+                
+        for msg in new_messages:
+            if msg.created_at and msg.created_at.tzinfo is None:
+                msg.created_at = msg.created_at.replace(tzinfo=timezone.utc)
+            if msg.updated_at and msg.updated_at.tzinfo is None:
+                msg.updated_at = msg.updated_at.replace(tzinfo=timezone.utc)
+        
+        return SyncResponse(
+            synced_messages=synced_messages,
+            new_messages=new_messages
+        )
     
-    return SyncResponse(
-        synced_messages=synced_messages,
-        new_messages=new_messages
-    )
+    except Exception as e:
+        logger.error(f"Sync failed for user {current_user.id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Sync failed: {str(e)}"
+        )

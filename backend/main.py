@@ -8,7 +8,15 @@ load_dotenv()
 
 from contextlib import asynccontextmanager
 from database import engine, Base
-from routers import auth_router, api_router, websocket_router, room_router, message_router, file_router, sync_router, friend_router, notification_router
+from routers import auth_router, api_router, websocket_router, room_router, message_router, file_router, sync_router, friend_router, notification_router, health
+from middleware import TimeoutMiddleware, CorrelationIDMiddleware, RequestLoggingMiddleware
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -143,7 +151,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add middleware (order matters - last added runs first)
+app.add_middleware(TimeoutMiddleware, timeout_seconds=30)
+app.add_middleware(CorrelationIDMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+
 # Include routers
+app.include_router(health.router)
 app.include_router(auth_router.router)
 app.include_router(api_router.router)
 app.include_router(friend_router.router)

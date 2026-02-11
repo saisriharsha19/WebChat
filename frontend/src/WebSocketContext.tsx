@@ -59,11 +59,23 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    const syncInProgressRef = useRef(false);
+    const lastSyncErrorRef = useRef<number>(0);
+    const syncErrorCountRef = useRef(0);
+
     const syncMessages = useCallback(async () => {
         if (!navigator.onLine) {
             console.log("Skipping sync, offline");
             return;
         }
+
+        // Prevent concurrent syncs
+        if (syncInProgressRef.current) {
+            console.log("Sync already in progress, skipping");
+            return;
+        }
+
+        syncInProgressRef.current = true;
 
         try {
             // 1. Get offline messages (pending)
@@ -144,10 +156,19 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             });
 
             setLastUpdate(Date.now());
+            syncErrorCountRef.current = 0; // Reset error count on success
             // console.log("Sync completed");
 
         } catch (err) {
             console.error("Sync failed:", err);
+            syncErrorCountRef.current++;
+            lastSyncErrorRef.current = Date.now();
+
+            // Exponential backoff for repeated errors
+            const backoffDelay = Math.min(30000, 1000 * Math.pow(2, syncErrorCountRef.current));
+            console.warn(`Will retry sync in ${backoffDelay}ms (error count: ${syncErrorCountRef.current})`);
+        } finally {
+            syncInProgressRef.current = false;
         }
     }, []); // No dependencies needed as it uses globals/db, effectively static
 
@@ -158,7 +179,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const throttledSync = useCallback(() => {
         const now = Date.now();
         const timeSinceLastSync = now - lastSyncTriggerRef.current;
-        const THROTTLE_MS = 2000; // 2 seconds throttle
+        const THROTTLE_MS = 500; // Reduced from 2s to 500ms for faster updates
 
         if (timeSinceLastSync >= THROTTLE_MS) {
             lastSyncTriggerRef.current = now;
@@ -323,7 +344,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
 
                 if (token && isOnline) {
-                    const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttemptsRef.current));
+                    // Reduced max delay from 30s to 5s for faster reconnection
+                    const delay = Math.min(5000, 1000 * Math.pow(2, reconnectAttemptsRef.current));
                     reconnectAttemptsRef.current++;
                     reconnectTimeoutRef.current = window.setTimeout(() => {
                         console.log(`Reconnecting... (attempt ${reconnectAttemptsRef.current})`);

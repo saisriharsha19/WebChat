@@ -37,18 +37,20 @@ connect_args = {}
 if "sqlite" in DATABASE_URL:
     connect_args = {"check_same_thread": False}
 
-from sqlalchemy.pool import NullPool
-
 engine_args = {
-    "connect_args": connect_args
+    "connect_args": connect_args,
+    "echo_pool": False,  # Set to True for debugging
 }
 
 if "postgresql" in DATABASE_URL:
-    # Use NullPool for PostgreSQL to work better with Supabase Transaction Pooler
-    # This prevents the application from holding onto connections unnecessarily
-    engine_args["poolclass"] = NullPool
-    # keeping the connection alive
-    engine_args["pool_pre_ping"] = True
+    # Use QueuePool with proper limits for production reliability
+    # This prevents connection exhaustion while maintaining good performance
+    engine_args["pool_size"] = 5          # Base pool size
+    engine_args["max_overflow"] = 10      # Extra connections when needed
+    engine_args["pool_recycle"] = 3600    # Recycle connections after 1 hour
+    engine_args["pool_pre_ping"] = True   # Health check before using connection
+    engine_args["pool_timeout"] = 30      # Wait max 30s for available connection
+    print(f"✓ Configured PostgreSQL connection pool: size=5, max_overflow=10, recycle=3600s")
 
 engine = create_engine(
     DATABASE_URL, **engine_args

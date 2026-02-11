@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { useConnectivity } from '../hooks/useConnectivity';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import { ConnectionStatus } from './ConnectionStatus';
 import { WifiOff, Download } from 'lucide-react';
 
 interface LayoutProps {
@@ -71,6 +72,9 @@ export function Layout({ sidebarContent, children, sidebarOpen, onSidebarClose }
                 )}
                 {children}
             </main>
+
+            {/* Connection Status Indicator */}
+            <ConnectionStatus />
         </div>
     );
 }
