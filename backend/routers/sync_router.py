@@ -105,31 +105,15 @@ async def sync_messages(
     # Get user's rooms
     room_ids = [rm.room_id for rm in db.query(RoomMember).filter(RoomMember.user_id == current_user.id).all()]
     
-    # Fetch new messages (reduced from 1000 to 100 to prevent timeouts)
-    query = db.query(Message).filter(Message.room_id.in_(room_ids))
+    # Fetch new messages with eager loading of sender
+    from sqlalchemy.orm import joinedload
+    query = db.query(Message).options(joinedload(Message.sender)).filter(Message.room_id.in_(room_ids))
     if last_sync:
         query = query.filter(Message.created_at > last_sync)
     
     new_messages = query.order_by(Message.created_at.desc()).limit(100).all()
     
-    messages_data = []
-    for msg in new_messages:
-        messages_data.append({
-            "id": msg.id,
-            "content": msg.content,
-            "sender_id": msg.sender_id,
-            "room_id": msg.room_id,
-            "message_type": msg.message_type,
-            "created_at": msg.created_at.replace(tzinfo=timezone.utc).isoformat(),
-            "sender": {
-                "id": msg.sender.id,
-                "username": msg.sender.username,
-                "display_name": msg.sender.display_name,
-                "avatar_url": msg.sender.avatar_url
-            } if msg.sender else None
-        })
-    
     return SyncResponse(
         synced_messages=synced_messages,
-        new_messages=messages_data
+        new_messages=new_messages  # Let Pydantic handle serialization
     )
