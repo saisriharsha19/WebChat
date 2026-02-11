@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext.tsx';
 import { API_ENDPOINTS, fetchWithAuth } from './lib/api.ts';
 import { db } from './lib/db.ts';
@@ -32,6 +33,7 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 export function WebSocketProvider({ children }: { children: ReactNode }) {
     const { token, user } = useAuth();
     const isOnline = useConnectivity();
+    const queryClient = useQueryClient();  // React Query cache invalidation
     const wsRef = useRef<WebSocket | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
     const [lastUpdate, setLastUpdate] = useState(0);
@@ -196,17 +198,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
     }, [syncMessages]);
 
-    // Periodic Sync (Every 60 seconds)
-    useEffect(() => {
-        const intervalId = setInterval(() => {
-            if (token && user && isOnline && (wsRef.current?.readyState === WebSocket.OPEN || document.visibilityState === 'visible')) {
-                // console.log("Periodic background sync...");
-                syncMessages();
-            }
-        }, 60000);
-
-        return () => clearInterval(intervalId);
-    }, [token, user, isOnline, syncMessages]);
+    // Removed periodic 60s sync - now uses WebSocket events + window focus refetch
 
     const connect = useCallback(() => {
         if (!token || !isOnline) return;
@@ -298,6 +290,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         }
                     } else if (['friend_request', 'friend_accepted', 'friend_request_rejected'].includes(data.type)) {
                         setLastFriendUpdate(Date.now());
+
+                        // Invalidate React Query cache to trigger refetch
+                        queryClient.invalidateQueries({ queryKey: ['friends'] });
+                        queryClient.invalidateQueries({ queryKey: ['rooms'] });  // May create new DM
 
                         if (Notification.permission === 'granted' && document.hidden) {
                             if (data.type === 'friend_request') {

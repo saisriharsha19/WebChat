@@ -90,11 +90,10 @@ async def get_my_rooms(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Eager load members and their user info for display
+    # Removed eager loading - it was causing 100+ second query times
+    # Members will load lazily when needed
     rooms = db.query(Room).join(RoomMember).filter(
         RoomMember.user_id == current_user.id
-    ).options(
-        joinedload(Room.members).joinedload(RoomMember.user)
     ).all()
     
     return rooms

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { fetchWithAuth, API_ENDPOINTS } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import { Room } from '../types';
@@ -12,25 +12,16 @@ interface RoomListProps {
 }
 
 export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: RoomListProps) {
-    const [rooms, setRooms] = useState<Room[]>([]);
+    // React Query handles caching, refetching, and deduplication automatically
+    const { data: rooms = [] } = useQuery<Room[]>({
+        queryKey: ['rooms'],
+        queryFn: () => fetchWithAuth(API_ENDPOINTS.getRooms),
+        staleTime: 2 * 60 * 1000,  // 2 minutes
+        // No polling! WebSocket will trigger refetch when needed
+    });
 
-    useEffect(() => {
-        loadRooms();
-        const interval = setInterval(loadRooms, 5000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const loadRooms = async () => {
-        try {
-            const data = await fetchWithAuth(API_ENDPOINTS.getRooms);
-            setRooms(data);
-        } catch (e) {
-            console.error("Failed to load rooms", e);
-        }
-    };
-
-    const dms = rooms.filter(r => r.type === 'direct');
-    const groups = rooms.filter(r => r.type === 'group');
+    const dms = rooms.filter((r: Room) => r.type === 'direct');
+    const groups = rooms.filter((r: Room) => r.type === 'group');
 
     const { user } = useAuth(); // Need to access current user to filter
 
@@ -58,7 +49,7 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
                     </button>
                 </div>
-                {groups.map(room => (
+                {groups.map((room: Room) => (
                     <button
                         key={room.id}
                         onClick={() => onSelectRoom(room.id)}
@@ -84,7 +75,7 @@ export function RoomList({ currentRoomId, onSelectRoom, onNewDM, onNewGroup }: R
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
                     </button>
                 </div>
-                {dms.map(room => (
+                {dms.map((room: Room) => (
                     <button
                         key={room.id}
                         onClick={() => onSelectRoom(room.id)}
