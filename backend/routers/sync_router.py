@@ -94,13 +94,7 @@ async def sync_messages(
     db.commit()
     
     # 2. Get new messages since last sync  
-    last_sync = None
-    if sync_data.last_sync_time:
-        # Handle ISO format with 'Z' timezone indicator
-        time_str = sync_data.last_sync_time
-        if time_str.endswith('Z'):
-            time_str = time_str[:-1] + '+00:00'
-        last_sync = datetime.fromisoformat(time_str)
+    last_sync = sync_data.last_sync_time  # Already a datetime from Pydantic
     
     # Get user's rooms
     room_ids = [rm.room_id for rm in db.query(RoomMember).filter(RoomMember.user_id == current_user.id).all()]
