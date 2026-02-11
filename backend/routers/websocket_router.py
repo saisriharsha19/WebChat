@@ -68,6 +68,10 @@ class ConnectionManager:
                     await self.handle_task(task, db)
                 except Exception as e:
                     print(f"Queue Task Failed: {e}")
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
                 finally:
                     db.close()
                     self.queue.task_done()
@@ -443,6 +447,8 @@ async def shutdown_event():
 async def websocket_chat(websocket: WebSocket, token: str):
     db = SessionLocal()
     user = None
+    user_id = None
+    username = None
     conn_id = None
     
     try:
@@ -468,8 +474,12 @@ async def websocket_chat(websocket: WebSocket, token: str):
             await websocket.close(code=1008)
             return
         
+        # Store user data to avoid detached object errors
+        user_id = user.id
+        username = user.username
+        
         # Connect and get ID
-        conn_id = await manager.connect(websocket, user.id)
+        conn_id = await manager.connect(websocket, user_id)
         
         def update_status():
             user.last_seen = datetime.utcnow()
@@ -477,12 +487,12 @@ async def websocket_chat(websocket: WebSocket, token: str):
             db.commit()
             
         await asyncio.to_thread(update_status)
-        asyncio.create_task(manager.notify_friends_status(user.id, "online", db))
+        asyncio.create_task(manager.notify_friends_status(user_id, "online", db))
         
         await websocket.send_json({
             "type": "connected",
-            "user_id": user.id,
-            "username": user.username,
+            "user_id": user_id,
+            "username": username,
             "connection_id": conn_id # Send back to client if needed (debug)
         })
         
@@ -511,32 +521,39 @@ async def websocket_chat(websocket: WebSocket, token: str):
             elif message_type == "join_room":
                 room_id = data.get("room_id")
                 def check_perm():
-                     return db.query(RoomMember).filter(RoomMember.room_id==room_id, RoomMember.user_id==user.id).first()
+                     return db.query(RoomMember).filter(RoomMember.room_id==room_id, RoomMember.user_id==user_id).first()
                 if await asyncio.to_thread(check_perm):
-                     manager.join_room(room_id, user.id)
+                     manager.join_room(room_id, user_id)
                      await websocket.send_json({"type": "joined_room", "room_id": room_id})
                 else:
                      await websocket.send_json({"type": "error", "message": "Access denied"})
 
             elif message_type == "leave_room":
-                manager.leave_room(data.get("room_id"), user.id)
+                manager.leave_room(data.get("room_id"), user_id)
 
     except WebSocketDisconnect:
-        if user and conn_id:
-            manager.disconnect(conn_id, user.id)
+        if user_id and conn_id:
+            manager.disconnect(conn_id, user_id)
             
             # Only mark offline if NO connections left
-            if user.id not in manager.active_connections:
+            if user_id not in manager.active_connections:
                 async def set_offline():
-                    user.last_seen = datetime.utcnow()
-                    user.is_active = False 
-                    db.commit()
+                    try:
+                        user.last_seen = datetime.utcnow()
+                        user.is_active = False 
+                        db.commit()
+                    except Exception:
+                        db.rollback()
                 await asyncio.to_thread(set_offline)
-                await manager.notify_friends_status(user.id, "offline", db)
+                await manager.notify_friends_status(user_id, "offline", db)
             
     except Exception as e:
         print(f"WebSocket error: {e}")
-        if user and conn_id:
-            manager.disconnect(conn_id, user.id)
+        if user_id and conn_id:
+            manager.disconnect(conn_id, user_id)
     finally:
+        try:
+            db.rollback()  # Rollback any pending transactions
+        except Exception:
+            pass
         await asyncio.to_thread(db.close)

@@ -47,10 +47,11 @@ if "postgresql" in DATABASE_URL:
     # This prevents connection exhaustion while maintaining good performance
     engine_args["pool_size"] = 5          # Base pool size
     engine_args["max_overflow"] = 10      # Extra connections when needed
-    engine_args["pool_recycle"] = 3600    # Recycle connections after 1 hour
+    engine_args["pool_recycle"] = 300     # Recycle connections after 5 min (prevents SSL timeout)
     engine_args["pool_pre_ping"] = True   # Health check before using connection
     engine_args["pool_timeout"] = 30      # Wait max 30s for available connection
-    print(f"✓ Configured PostgreSQL connection pool: size=5, max_overflow=10, recycle=3600s")
+    engine_args["pool_use_lifo"] = True   # Use LIFO to recycle connections more frequently
+    print(f"✓ Configured PostgreSQL connection pool: size=5, max_overflow=10, recycle=300s")
 
 engine = create_engine(
     DATABASE_URL, **engine_args
@@ -70,5 +71,9 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Always rollback on error to prevent PendingRollbackError
+        db.rollback()
+        raise
     finally:
         db.close()
