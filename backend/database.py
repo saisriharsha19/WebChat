@@ -36,6 +36,12 @@ if "pooler.supabase.com" in DATABASE_URL and ":5432" in DATABASE_URL:
 connect_args = {}
 if "sqlite" in DATABASE_URL:
     connect_args = {"check_same_thread": False}
+elif "postgresql" in DATABASE_URL:
+    # Add connection timeouts to prevent SSL hangs on cold start
+    connect_args = {
+        "connect_timeout": 10,  # 10 second timeout for initial connection
+        "options": "-c statement_timeout=30000"  # 30 second statement timeout
+    }
 
 engine_args = {
     "connect_args": connect_args,
